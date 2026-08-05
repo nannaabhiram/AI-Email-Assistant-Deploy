@@ -16,7 +16,6 @@ import {
   Avatar,
   Stack,
   IconButton,
-  LinearProgress,
   alpha,
 } from "@mui/material";
 
@@ -30,9 +29,6 @@ import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import BoltIcon from "@mui/icons-material/Bolt";
-import EmailIcon from "@mui/icons-material/Email";
-import ScheduleIcon from "@mui/icons-material/Schedule";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 
 import {
   PieChart,
@@ -52,7 +48,7 @@ import AnalyticsOutlinedIcon from "@mui/icons-material/AnalyticsOutlined";
 import FolderOpenOutlinedIcon from "@mui/icons-material/FolderOpenOutlined";
 import PsychologyOutlinedIcon from "@mui/icons-material/PsychologyOutlined";
 import EventOutlinedIcon from "@mui/icons-material/EventOutlined";
-import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+
 
 function Dashboard() {
   const theme = useTheme();
