@@ -1,32 +1,30 @@
 import {
+  Avatar,
+  Box,
+  Chip,
   Drawer,
+  IconButton,
   List,
   ListItemButton,
   ListItemIcon,
   ListItemText,
   Toolbar,
   Typography,
-  Box,
-  useMediaQuery,
-  IconButton,
-  Avatar,
-  Chip,
-  Divider,
-  alpha,
+  useMediaQuery
 } from "@mui/material";
 
 import { useTheme } from "@mui/material/styles";
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 
+import AnalyticsRoundedIcon from "@mui/icons-material/AnalyticsRounded";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
 import InboxRoundedIcon from "@mui/icons-material/InboxRounded";
-import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
-import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
-import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import LogoutIcon from "@mui/icons-material/Logout";
-import AnalyticsRoundedIcon from "@mui/icons-material/AnalyticsRounded";
 import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
+import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 
 const menuItems = [
   { text: "Dashboard", icon: <DashboardRoundedIcon />, path: "/" },

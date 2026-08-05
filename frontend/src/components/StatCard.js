@@ -1,7 +1,7 @@
 import {
+  Box,
   Paper,
-  Typography,
-  Box
+  Typography
 } from "@mui/material";
 
 function StatCard({

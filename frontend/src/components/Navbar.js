@@ -1,34 +1,34 @@
 import {
   AppBar,
-  Toolbar,
-  Typography,
-  Box,
   Avatar,
+  Badge,
+  Box,
+  Chip,
+  Divider,
   IconButton,
+  InputBase,
   Menu,
   MenuItem,
-  useMediaQuery,
+  Toolbar,
   Tooltip,
-  InputBase,
-  Badge,
-  Chip,
-  Divider
+  Typography,
+  useMediaQuery
 } from "@mui/material";
 
 import { useTheme } from "@mui/material/styles";
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 
-import MenuIcon from "@mui/icons-material/Menu";
-import LogoutIcon from "@mui/icons-material/Logout";
-import SettingsIcon from "@mui/icons-material/Settings";
-import SearchIcon from "@mui/icons-material/Search";
-import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
-import DarkModeOutlinedIcon from "@mui/icons-material/DarkModeOutlined";
-import SyncIcon from "@mui/icons-material/Sync";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import DarkModeOutlinedIcon from "@mui/icons-material/DarkModeOutlined";
 import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
 import InboxRoundedIcon from "@mui/icons-material/InboxRounded";
+import LogoutIcon from "@mui/icons-material/Logout";
+import MenuIcon from "@mui/icons-material/Menu";
+import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
+import SearchIcon from "@mui/icons-material/Search";
+import SettingsIcon from "@mui/icons-material/Settings";
+import SyncIcon from "@mui/icons-material/Sync";
 
 function Navbar({ logout, toggleDarkMode }) {
   const theme = useTheme();

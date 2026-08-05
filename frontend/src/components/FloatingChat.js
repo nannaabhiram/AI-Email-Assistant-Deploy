@@ -1,23 +1,20 @@
-import { useState } from "react";
 import axios from "axios";
+import { useState } from "react";
 
 import {
+  Avatar,
+  Box,
   Fab,
+  IconButton,
   Paper,
   TextField,
-  Typography,
-  Box,
-  IconButton,
-  CircularProgress,
-  Avatar,
-  Stack,
-  alpha,
+  Typography
 } from "@mui/material";
 
-import SmartToyIcon from "@mui/icons-material/SmartToy";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import CloseIcon from "@mui/icons-material/Close";
 import SendIcon from "@mui/icons-material/Send";
-import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import SmartToyIcon from "@mui/icons-material/SmartToy";
 
 function FloatingChat() {
   const [open, setOpen] = useState(false);
