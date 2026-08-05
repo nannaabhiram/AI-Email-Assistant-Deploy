@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { saveAs } from "file-saver";
 import { toast } from "react-toastify";
-import { useTheme } from "@mui/material/styles";
 import { motion } from "framer-motion";
 
 import {
@@ -51,7 +50,6 @@ import EventOutlinedIcon from "@mui/icons-material/EventOutlined";
 
 
 function Dashboard() {
-  const theme = useTheme();
   const chartGridColor = "rgba(255, 255, 255, 0.04)";
   const chartTickColor = "rgba(255, 255, 255, 0.5)";
 

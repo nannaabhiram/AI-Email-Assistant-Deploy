@@ -14,7 +14,6 @@ import {
   Grid,
   TextField,
   Stack,
-  Avatar,
   alpha,
 } from "@mui/material";
 
@@ -25,7 +24,6 @@ import ReplyIcon from "@mui/icons-material/Reply";
 import PersonIcon from "@mui/icons-material/Person";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import SendIcon from "@mui/icons-material/Send";
-import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import PriorityHighIcon from "@mui/icons-material/PriorityHigh";
 import CategoryIcon from "@mui/icons-material/Category";
 import ScheduleIcon from "@mui/icons-material/Schedule";

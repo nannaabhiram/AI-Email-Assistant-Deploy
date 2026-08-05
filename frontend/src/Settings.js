@@ -16,15 +16,11 @@ import {
   List,
   ListItem,
   ListItemText,
-  FormControlLabel,
   Grid,
   Avatar,
-  Chip,
-  alpha,
 } from "@mui/material";
 
 import PersonIcon from "@mui/icons-material/Person";
-import PaletteIcon from "@mui/icons-material/Palette";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import CloudDownloadIcon from "@mui/icons-material/CloudDownload";
 import SaveIcon from "@mui/icons-material/Save";
