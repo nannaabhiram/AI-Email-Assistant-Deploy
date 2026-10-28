@@ -1,0 +1,54 @@
+[project]
+name = "mailpilot-backend"
+version = "1.0.0"
+description = "MailPilot AI backend: FastAPI + Supabase Postgres + remote DGX Spark inference"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi[standard]>=0.162",
+  "pydantic>=2.14",
+  "pydantic-settings>=2.16",
+  "sqlalchemy[asyncio]>=2.1",
+  "asyncpg>=0.32",
+  "httpx>=0.28",
+  "pyjwt[crypto]>=2.15",
+  "cryptography>=50",
+  "structlog>=26.1",
+  "beautifulsoup4>=4.15",
+  "python-dateutil>=3.0",
+  "tzdata>=2025.2",
+  "icalendar>=7.3",
+  "pypdf>=6.21",
+  "python-docx>=1.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=9.2", "pytest-asyncio>=1.4", "respx>=0.23", "ruff>=0.14", "mypy>=1.18"]
+ocr = ["pytesseract>=0.3.13", "pypdfium2>=4.30"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+markers = [
+  "db: requires the local Supabase Postgres (npx supabase start)",
+  "dgx: requires a reachable DGX inference endpoint",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC"]
+ignore = ["UP046", "E501", "B008", "S101", "S105", "S106", "S311", "S608", "ASYNC109"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+ignore_missing_imports = true
+warn_unused_ignores = false
+check_untyped_defs = true

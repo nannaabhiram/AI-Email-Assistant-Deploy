@@ -1,0 +1,46 @@
+# --- Secrets (never commit) -------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+credentials/
+client_secret*.json
+token*.json
+
+# --- Python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# --- Node / frontend -----------------------------------------------------------
+node_modules/
+dist/
+storybook-static/
+frontend/test-results/
+frontend/playwright-report/
+frontend/e2e/screenshots/
+*.tsbuildinfo
+*.log
+
+# --- Supabase local ------------------------------------------------------------
+supabase/.temp/
+supabase/.branches/
+
+# --- Editors / OS ----------------------------------------------------------------
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+.claude/settings.local.json
+.api-smoke.log

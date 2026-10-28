@@ -1,0 +1,36 @@
+# MailPilot AI application services. Supabase runs separately (hosted project, or
+# `npx supabase start` locally). Inference runs on the DGX Spark; when it is reached
+# through an SSH tunnel on the host, use DGX_LLM_API_BASE_URL=http://host.docker.internal:<port>/v1.
+#
+#   docker compose --env-file backend/.env up --build
+services:
+  api:
+    build: ./backend
+    env_file: backend/.env
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    ports:
+      - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  worker:
+    build: ./backend
+    command: ["python", "-m", "app.jobs.worker"]
+    env_file: backend/.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    stop_grace_period: 70s
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-http://127.0.0.1:55321}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY:-}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    ports:
+      - "5173:8080"
+    depends_on: [api]

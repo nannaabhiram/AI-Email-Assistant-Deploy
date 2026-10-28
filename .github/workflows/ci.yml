@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.0
+      - name: Start Supabase (Postgres + Auth + Storage) and apply migrations
+        working-directory: .
+        run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,realtime,postgres-meta
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: mypy app
+      - run: pytest -q
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:55322/postgres
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: http://127.0.0.1:55321
+          VITE_SUPABASE_PUBLISHABLE_KEY: ci-placeholder
+          VITE_API_BASE_URL: http://localhost:8000
+      - run: npm run build-storybook
