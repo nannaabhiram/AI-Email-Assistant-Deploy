@@ -29,6 +29,12 @@ class CurrentUser:
     email: str | None
     claims: dict[str, Any]
 
+    @property
+    def is_demo(self) -> bool:
+        """Seeded sample-data account. app_metadata is writable only server-side, so it is trustworthy."""
+        meta = self.claims.get("app_metadata")
+        return isinstance(meta, dict) and meta.get("demo") is True
+
 
 class JWKSCache:
     def __init__(self, ttl_seconds: int = 600) -> None:

@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analysis.attachments import process_attachment
 from app.analysis.briefing import generate_briefing
@@ -29,10 +29,11 @@ from app.db.models import (
     UserSettings,
 )
 from app.db.session import system_session
-from app.gmail.client import GmailAuthError
+from app.gmail.client import GmailAuthError, GmailRateLimitError
 from app.gmail.sync import SyncSkipped, sync_account
 from app.jobs.queue import enqueue
 from app.logging import get_logger
+from app.services.timezones import briefing_due_date
 
 log = get_logger(__name__)
 
@@ -49,6 +50,14 @@ class PermanentFailure(Exception):
     """Do not retry."""
 
 
+class RetryAfter(Exception):
+    """Retry with at least ``seconds`` delay; consumes an attempt (bounded by max_attempts)."""
+
+    def __init__(self, seconds: int, reason: str) -> None:
+        super().__init__(reason)
+        self.seconds = seconds
+
+
 Handler = Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]]
 
 
@@ -59,6 +68,10 @@ async def handle_gmail_sync(payload: dict[str, Any]) -> dict[str, Any]:
         return {"skipped": str(exc)}
     except GmailAuthError as exc:
         raise PermanentFailure(f"Gmail authorization required: {exc}") from exc
+    except GmailRateLimitError as exc:
+        # Gmail quotas recover over minutes; quick retries only burn more quota. Messages already
+        # stored are kept, so the retry resumes where this attempt stopped.
+        raise RetryAfter(300, f"GmailRateLimitError: {exc}") from exc
     return {"mode": result.mode, "created": result.created, "updated": result.updated, "deleted": result.deleted}
 
 
@@ -170,6 +183,25 @@ HANDLERS: dict[str, Handler] = {
 }
 
 
+async def schedule_briefings(s: AsyncSession, now: datetime, user_ids: list[UUID] | None = None) -> list[UUID]:
+    """Enqueue each user's daily briefing once their local briefing time has passed. Returns the users queued."""
+    q = select(UserSettings).where(UserSettings.briefing_enabled.is_(True))
+    if user_ids is not None:
+        q = q.where(UserSettings.user_id.in_(user_ids))
+    queued: list[UUID] = []
+    for us in (await s.execute(q)).scalars().all():
+        due = briefing_due_date(now, us.timezone, us.briefing_time)
+        if due is None:
+            continue
+        exists = (await s.execute(text(
+            "select 1 from public.briefing_runs where user_id = :u and briefing_date = :d"),
+            {"u": us.user_id, "d": due})).first()
+        if not exists and await enqueue(s, "generate_briefing", {"user_id": str(us.user_id)}, user_id=us.user_id,
+                                        dedupe_key=f"briefing:{us.user_id}:{due}", priority=60):
+            queued.append(us.user_id)
+    return queued
+
+
 async def schedule_periodic_jobs() -> None:
     """Enqueue recurring work. Dedupe keys make this safe to call from several workers."""
     settings = get_settings()
@@ -186,20 +218,7 @@ async def schedule_periodic_jobs() -> None:
         for account_id, user_id in accounts:
             await enqueue(s, "gmail_sync", {"account_id": str(account_id), "mode": "auto"}, user_id=user_id,
                           dedupe_key=f"sync:{account_id}", priority=20)
-        users = (await s.execute(select(UserSettings).where(UserSettings.briefing_enabled.is_(True)))).scalars().all()
-        for us in users:
-            try:
-                tz = ZoneInfo(us.timezone)
-            except Exception:
-                tz = ZoneInfo("UTC")
-            local = now.astimezone(tz)
-            if local.time() >= (us.briefing_time or time(8, 0)):
-                exists = (await s.execute(text(
-                    "select 1 from public.briefing_runs where user_id = :u and briefing_date = :d"),
-                    {"u": us.user_id, "d": local.date()})).first()
-                if not exists:
-                    await enqueue(s, "generate_briefing", {"user_id": str(us.user_id)}, user_id=us.user_id,
-                                  dedupe_key=f"briefing:{us.user_id}:{local.date()}", priority=60)
+        await schedule_briefings(s, now)
         await enqueue(s, "send_reminders", {}, dedupe_key="reminders", priority=70)
         ran_today = (await s.execute(text(
             "select 1 from public.jobs where job_type = 'retention_cleanup' and dedupe_key = :k and status = 'succeeded'"),

@@ -50,8 +50,22 @@ async def test_rate_limit_is_retried_with_backoff() -> None:
 async def test_rate_limit_gives_up_after_bounded_retries() -> None:
     respx.get(f"{BASE}/profile").mock(return_value=httpx.Response(503))
     client, _ = _client(retries=2)
-    with pytest.raises(GmailRateLimitError):
+    with pytest.raises(GmailRateLimitError) as info:
         await client.get_profile()
+    assert str(info.value) == "Gmail rate limit or server error persisted (HTTP 503)"
+
+
+@respx.mock
+async def test_sync_job_waits_minutes_after_persistent_rate_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.jobs import handlers
+
+    async def limited(*_: object, **__: object) -> None:
+        raise GmailRateLimitError("Gmail rate limit or server error persisted", 429, "rateLimitExceeded")
+
+    monkeypatch.setattr(handlers, "sync_account", limited)
+    with pytest.raises(handlers.RetryAfter) as info:
+        await handlers.handle_gmail_sync({"account_id": str(uuid.uuid4())})
+    assert info.value.seconds >= 300 and "HTTP 429, rateLimitExceeded" in str(info.value)
 
 
 @respx.mock

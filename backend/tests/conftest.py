@@ -104,10 +104,15 @@ async def create_account(user_id: uuid.UUID, scopes: list[str] | None = None) ->
     return account_id
 
 
-def make_token(user_id: uuid.UUID, *, expires_in: int = 600, role: str = "authenticated", aud: str = "authenticated") -> str:
+def make_token(user_id: uuid.UUID, *, expires_in: int = 600, role: str = "authenticated", aud: str = "authenticated",
+               app_metadata: dict[str, Any] | None = None, user_metadata: dict[str, Any] | None = None) -> str:
     now = int(time.time())
-    payload = {"sub": str(user_id), "role": role, "aud": aud, "iat": now, "exp": now + expires_in,
-               "email": f"{user_id.hex[:8]}@{TEST_DOMAIN}"}
+    payload: dict[str, Any] = {"sub": str(user_id), "role": role, "aud": aud, "iat": now, "exp": now + expires_in,
+                               "email": f"{user_id.hex[:8]}@{TEST_DOMAIN}"}
+    if app_metadata is not None:
+        payload["app_metadata"] = app_metadata
+    if user_metadata is not None:
+        payload["user_metadata"] = user_metadata
     return jwt.encode(payload, os.environ["SUPABASE_JWT_SECRET"], algorithm="HS256")
 
 

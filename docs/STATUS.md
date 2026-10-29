@@ -1,4 +1,4 @@
-# Project status (2026-10-28)
+# Project status (2026-10-29)
 
 ## Test results (actual runs on this machine)
 
@@ -6,16 +6,16 @@
 |---|---|
 | Backend lint (`ruff`, including security rules) | ✅ clean |
 | Backend types (`mypy`, 58 files) | ✅ clean |
-| Backend unit tests (parser, deadlines, scoring, phishing, LLM validation, Gmail client retries/refresh, JWT ES256/HS256, attachments, MIME) | ✅ 63 passed |
-| Backend integration tests against **real local Supabase Postgres** (RLS isolation, DB-enforced state machine, job queue leases/dedupe/backoff, retention, sync full/incremental/expired-history/idempotency, analysis pipeline + injection + evidence validation + rules fallback, approvals: hash binding, draft-edit invalidation, crash-after-send and stale-EXECUTING recovery with no duplicate send, cross-user denial, expiry, scope upgrade, external recipients; API: auth, IDOR, search scoping, OAuth state/PKCE, rate limiting, settings concurrency; briefing, reminders, NL search paths, scheduler) | ✅ 33 passed |
+| Backend unit tests (parser, deadlines, scoring, phishing, LLM validation, Gmail client retries/refresh/error detail, sync rate-limit backoff, JWT ES256/HS256, attachments, MIME) | ✅ 64 passed |
+| Backend integration tests against **real local Supabase Postgres** (RLS isolation, DB-enforced state machine, job queue leases/dedupe/backoff, retention, sync full/incremental/expired-history/idempotency, analysis pipeline + injection + evidence validation + rules fallback, approvals: hash binding, draft-edit invalidation, crash-after-send and stale-EXECUTING recovery with no duplicate send, cross-user denial, expiry, scope upgrade, external recipients; API: auth, IDOR, search scoping, OAuth state/PKCE, rate limiting, settings concurrency; briefing, reminders, NL search paths, scheduler; demo-account flag and Gmail block, OAuth callback bound to the initiating user, shared-mailbox disconnect without revoking the other grant, resolved job failures hidden from status) | ✅ 37 passed |
 | DGX contract tests (`tests/dgx`) | ⛔ **BLOCKED**, 3 skipped. No reachable DGX endpoint (see below) |
 | Frontend type-check (TS 7 strict) | ✅ clean |
 | Frontend lint (oxlint) | ✅ 0 errors (non-blocking warnings: fast-refresh export hints, set-state-in-effect for server-data sync) |
 | Storybook story tests: 40 story files, every story rendered + `play()` interaction test + axe accessibility | ✅ 158 passed |
-| Form validation, filters, utilities, Approvals page flow (fetch-mocked) | ✅ 11 passed |
+| Form validation, filters, utilities, Approvals page flow, auth lifecycle (session restore, cache cleared on user switch, sign-out, wrong password, duplicate signup, password recovery) | ✅ 20 passed |
 | Production build (`vite build`) | ✅ |
 | Storybook static build | ✅ |
-| Playwright E2E (real Chrome, desktop 1366px + mobile 390px, live Supabase + API + worker + Vite) | ✅ 15 passed, 1 skipped (mobile-only test on the desktop project) |
+| Playwright E2E (real Chrome, desktop 1366px + mobile 390px, live Supabase + API + worker + Vite) | ✅ 18 passed, 2 skipped (project-specific tests), run serially; includes register → duplicate → wrong password → reset via Mailpit → sign in → refresh → delete account |
 | Migrations applied to a fresh Supabase (`supabase db reset`) | ✅ |
 | Live RLS check through PostgREST (own rows visible; anon and OAuth credentials denied) | ✅ |
 
@@ -49,8 +49,8 @@ Bugs found and fixed during verification: a dialog focus effect that stole keybo
 
 ## Remaining work and limitations (clearly not done)
 
-1. **DGX Spark connection (blocked on access).** `spark1` is offline and `spark2` rejects this machine's SSH key. Authorize the key, identify the serving API and model, fill in `DGX_*`, then run `scripts/dgx_check.py` and `pytest tests/dgx`. See DGX_SPARK.md.
-2. **Real Gmail end-to-end.** Create the Google OAuth client and test user (SETUP.md §2), connect a test account, and confirm sync, send and label against live Gmail.
+1. **DGX Spark connection (blocked on access).** The target is `spark2` only (`klh@100.80.191.86`), which rejects this machine's SSH key. Authorize the key, identify the serving API and model, fill in `DGX_*`, then run `scripts/dgx_check.py` and `pytest tests/dgx`. See DGX_SPARK.md.
+2. **Real Gmail end-to-end.** OAuth and read sync now work against a real mailbox: 518 messages synced and analysed by the rules. Sending and labelling against live Gmail have not been exercised, because that needs your explicit go-ahead on a real mailbox. On this machine the mailbox was first connected under the demo user; reconnect it under your own account (see the user guide).
 3. **Google Calendar integration.** Not implemented. Meetings are detected only; MailPilot never accepts or creates events.
 4. **Gmail sender filters** (`gmail.settings.basic`) are recommended in the UI, not executed.
 5. **Push notifications.** There are no Gmail Pub/Sub webhooks; sync is scheduled polling via the History API (every `SYNC_INTERVAL_MINUTES`) plus manual sync. Briefings and reminders are in-app notifications only (no email or push).

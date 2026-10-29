@@ -1,0 +1,17 @@
+{
+  "name": "mailpilot-ai",
+  "private": true,
+  "version": "1.0.0",
+  "description": "MailPilot AI development stack launcher (backend/ and frontend/ have their own packages)",
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/launcher/index.mjs start",
+    "stop": "node scripts/launcher/index.mjs stop",
+    "status": "node scripts/launcher/index.mjs status",
+    "restart": "node scripts/launcher/index.mjs restart",
+    "test:launcher": "node --test \"scripts/launcher/*.test.mjs\""
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

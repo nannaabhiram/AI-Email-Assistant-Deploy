@@ -1,14 +1,15 @@
-import { CloudOff, ServerCrash, WifiOff, X } from 'lucide-react'
+import { CloudOff, FlaskConical, ServerCrash, WifiOff, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link, Outlet, useNavigate } from 'react-router'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { EmptyState } from '@/components/ui/States'
 import { useAuth } from '@/hooks/useAuth'
-import { keys, useAction, useApprovals, useNotifications, useOnline, useSystemStatus } from '@/hooks/queries'
+import { keys, useAction, useApprovals, useMe, useNotifications, useOnline, useSystemStatus } from '@/hooks/queries'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { relativeTime } from '@/lib/format'
+import { inferenceState } from '@/lib/types'
 import { NavigationSidebar } from './NavigationSidebar'
 import { TopNavigation } from './TopNavigation'
 
@@ -27,6 +28,7 @@ export function AppShell() {
   const [drawer, setDrawer] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const status = useSystemStatus()
+  const me = useMe()
   const [staleCutoff] = useState(() => Date.now() - 60 * 60 * 1000)
   const pending = useApprovals(['PENDING_APPROVAL', 'PROPOSED'])
   const notifications = useNotifications()
@@ -34,6 +36,7 @@ export function AppShell() {
 
   const unread = notifications.data?.items.filter((n) => !n.read_at).length ?? 0
   const llm = status.data?.llm
+  const inference = llm ? inferenceState(llm) : null
   const staleAccount = status.data?.accounts.find((a) => a.status === 'active' && a.last_successful_sync_at &&
     new Date(a.last_successful_sync_at).getTime() < staleCutoff)
   const reauth = status.data?.accounts.find((a) => a.status === 'needs_reauth')
@@ -65,14 +68,30 @@ export function AppShell() {
           onProfile={() => navigate('/settings/accounts')}
           onSignOut={() => void signOut().then(() => navigate('/login'))}
         />
-        {!online && <Banner tone="danger" icon={<WifiOff className="h-4 w-4" aria-hidden />}>You are offline. Showing cached data; changes will fail until you reconnect.</Banner>}
-        {status.isError && online && <Banner tone="danger" icon={<ServerCrash className="h-4 w-4" aria-hidden />}>The MailPilot server is unreachable. Data may be stale.</Banner>}
-        {llm && llm.configured && !llm.reachable && (
-          <Banner tone="warning" icon={<CloudOff className="h-4 w-4" aria-hidden />}>
-            DGX inference is offline. New emails get labelled rule-based analysis and AI analysis is queued until it returns.
+        {me.data?.is_demo && (
+          <Banner tone="warning" icon={<FlaskConical className="h-4 w-4" aria-hidden />}>
+            You are signed in to the demo account ({me.data.email}), which shows sample data.{' '}
+            <button type="button" className="underline" onClick={() => void signOut().then(() => navigate('/login'))}>Sign out</button> and sign in with your own account to see your mail.
           </Banner>
         )}
-        {llm && !llm.configured && (
+        {!online && <Banner tone="danger" icon={<WifiOff className="h-4 w-4" aria-hidden />}>You are offline. Showing cached data; changes will fail until you reconnect.</Banner>}
+        {status.isError && online && <Banner tone="danger" icon={<ServerCrash className="h-4 w-4" aria-hidden />}>The MailPilot server is unreachable. Data may be stale.</Banner>}
+        {status.data?.worker?.stalled && (
+          <Banner tone="danger" icon={<ServerCrash className="h-4 w-4" aria-hidden />}>
+            The background worker is not running, so syncs, analysis and briefings are waiting. Restart MailPilot with <code>npm run restart</code> in the project folder.
+          </Banner>
+        )}
+        {inference === 'unreachable' && (
+          <Banner tone="warning" icon={<CloudOff className="h-4 w-4" aria-hidden />}>
+            DGX inference is offline. New emails get labelled rule-based analysis and AI analysis is queued until it returns. <Link className="underline" to="/settings/accounts">Diagnostics</Link>
+          </Banner>
+        )}
+        {inference === 'model_missing' && (
+          <Banner tone="warning" icon={<CloudOff className="h-4 w-4" aria-hidden />}>
+            The DGX is reachable but does not serve the configured model{llm?.model ? ` (${llm.model})` : ''}. Analysis is rule-based until it does. <Link className="underline" to="/settings/accounts">Diagnostics</Link>
+          </Banner>
+        )}
+        {inference === 'not_configured' && (
           <Banner tone="warning" icon={<CloudOff className="h-4 w-4" aria-hidden />}>
             No DGX inference endpoint is configured. Analysis is rule-based only. <Link className="underline" to="/settings/accounts">Diagnostics</Link>
           </Banner>

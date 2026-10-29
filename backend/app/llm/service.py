@@ -89,7 +89,8 @@ class LLMService:
 
     async def health(self) -> HealthReport:
         if self.provider is None:
-            return HealthReport(False, None, self.settings.dgx_llm_model, False, [], "LLM endpoint not configured")
+            problem = self.settings.llm_endpoint_problem or "LLM endpoint not configured"
+            return HealthReport(False, None, self.settings.dgx_llm_model, False, [], problem)
         return await self.provider.health()
 
     async def generate(
@@ -180,6 +181,15 @@ class LLMService:
 
 def _short(exc: Exception) -> str:
     return str(exc).replace("\n", " ")[:300]
+
+
+def inference_state(configured: bool, report: HealthReport) -> str:
+    """One status for the UI: not_configured | unreachable | model_missing | available."""
+    if not configured:
+        return "not_configured"
+    if not report.reachable:
+        return "unreachable"
+    return "available" if report.model_available else "model_missing"
 
 
 _service: LLMService | None = None

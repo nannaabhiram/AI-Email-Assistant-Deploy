@@ -22,7 +22,7 @@ from app.api.schemas import (
 from app.config import get_settings
 from app.db.models import AccountStatus, ConnectedAccount, GmailLabel, SyncState
 from app.db.session import system_session, user_session
-from app.errors import AppError, ConflictError, NotFoundError
+from app.errors import AppError, ConflictError, ForbiddenError, NotFoundError
 from app.gmail.client import SCOPE_MODIFY, SCOPE_SEND, GmailAuthError
 from app.gmail.oauth import (
     OAuthCallbackError,
@@ -58,6 +58,10 @@ async def list_accounts(user: CurrentUserDep) -> list[AccountOut]:
 
 @router.post("/gmail/oauth/start", response_model=OAuthStartOut, summary="Begin Gmail authorization")
 async def oauth_start(body: OAuthStartIn, user: SensitiveUserDep) -> OAuthStartOut:
+    if user.is_demo:
+        # Real mail must never be mixed into the shared sample-data account.
+        raise ForbiddenError("The demo account cannot connect a real mailbox. Sign in with your own account.",
+                             code="demo_account")
     async with system_session() as s:
         url = await build_authorization_url(s, user.id, body.scope_set, body.redirect_path, body.login_hint)
         record_audit(s, user_id=user.id, event="gmail.oauth_started", details={"scope_set": body.scope_set})

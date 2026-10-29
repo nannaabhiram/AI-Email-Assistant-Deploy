@@ -31,7 +31,7 @@ frontend/           React app
   src/test/         story/a11y runner, form and page-flow tests
   e2e/              Playwright end-to-end tests (desktop + mobile)
 supabase/           config.toml, migrations/ (schema, triggers, RLS, storage), seed.sql (synthetic)
-scripts/            dev.ps1, check.ps1, dgx-tunnel.ps1
+scripts/            launcher/ (npm start/stop/status), dev.ps1, check.ps1, dgx-tunnel.ps1
 docs/               setup, DGX, architecture, security, operations, status
 ```
 
@@ -53,8 +53,10 @@ npm ci
 Copy-Item .env.example .env.local  # then set VITE_SUPABASE_PUBLISHABLE_KEY
 cd ..
 
-# 3. Start Supabase + API + worker + frontend (+ Storybook)
-.\scripts\dev.ps1 -Storybook
+# 3. Start everything (Supabase check, Spark 2 tunnel, API, worker, frontend) and open the browser
+npm start
+# ...and later
+npm stop
 ```
 
 - Frontend: <http://localhost:5173>. The local seed login is `demo@mailpilot.test` / `mailpilot-demo-password` (synthetic data).

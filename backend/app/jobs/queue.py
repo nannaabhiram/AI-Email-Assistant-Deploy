@@ -73,10 +73,11 @@ async def complete(session: AsyncSession, job_id: int, worker_id: str) -> None:
 
 
 async def fail(
-    session: AsyncSession, job: Job, worker_id: str, error: str, *, retryable: bool = True
+    session: AsyncSession, job: Job, worker_id: str, error: str, *, retryable: bool = True,
+    min_delay: int = 0,
 ) -> JobStatus:
     if retryable and job.attempts < job.max_attempts:
-        delay = min(3600, 15 * (2 ** max(job.attempts - 1, 0)))
+        delay = min(3600, max(min_delay, 15 * (2 ** max(job.attempts - 1, 0))))
         status = JobStatus.queued
         values: dict[str, Any] = {"run_at": datetime.now(UTC) + timedelta(seconds=delay)}
     else:

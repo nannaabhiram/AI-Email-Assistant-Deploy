@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 from fastapi import APIRouter, Query
@@ -56,6 +55,7 @@ from app.db.session import system_session, user_session
 from app.errors import AppError, ConflictError, NotFoundError, ServiceUnavailableError
 from app.gmail.client import SCOPE_MODIFY, SCOPE_SEND
 from app.services.audit import record_audit
+from app.services.timezones import canonical_timezone
 
 router = APIRouter(prefix="/api/v1", tags=["people & settings"])
 
@@ -175,8 +175,8 @@ async def update_settings(body: SettingsUpdateIn, user: CurrentUserDep) -> Setti
     values: dict[str, Any] = body.model_dump(exclude_none=True, exclude={"version"})
     if "timezone" in values:
         try:
-            ZoneInfo(values["timezone"])
-        except (ZoneInfoNotFoundError, ValueError) as exc:
+            values["timezone"] = canonical_timezone(values["timezone"])  # e.g. Asia/Calcutta -> Asia/Kolkata
+        except ValueError as exc:
             raise AppError("Unknown timezone", code="invalid_timezone") from exc
     if not values:
         raise AppError("No changes supplied", code="no_changes")
@@ -214,6 +214,7 @@ async def me(user: CurrentUserDep) -> ProfileOut:
         out.sync = SyncStateOut.model_validate(st) if st else None
         accounts.append(out)
     return ProfileOut(id=profile.id, email=profile.email, display_name=profile.display_name, accounts=accounts,
+                      is_demo=user.is_demo,
                       settings=SettingsOut.model_validate(settings) if settings else None)
 
 

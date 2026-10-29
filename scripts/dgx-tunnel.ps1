@@ -44,9 +44,10 @@ if (-not $SshHost) { throw "DGX_SSH_HOST is not set (backend\.env or -SshHost)" 
 if (-not $RemotePort) { throw "DGX_REMOTE_LLM_PORT is not set: the port the inference server listens on, on the DGX" }
 
 $target = if ($User) { "$User@$SshHost" } else { $SshHost }
-$sshArgs = @("-N", "-o", "ExitOnForwardFailure=yes", "-o", "ServerAliveInterval=30", "-o", "ServerAliveCountMax=3",
-          "-p", "$SshPort", "-L", "127.0.0.1:${LocalPort}:${RemoteHost}:${RemotePort}")
-if ($KeyPath) { $sshArgs += @("-i", $KeyPath) }
+# BatchMode: key authentication only, never an interactive password prompt (this may run hidden).
+$sshArgs = @("-N", "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes", "-o", "ServerAliveInterval=30", "-o", "ServerAliveCountMax=3",
+          "-o", "ConnectTimeout=15", "-p", "$SshPort", "-L", "127.0.0.1:${LocalPort}:${RemoteHost}:${RemotePort}")
+if ($KeyPath) { $sshArgs += @("-i", [Environment]::ExpandEnvironmentVariables($KeyPath.Replace('$HOME', $HOME)), "-o", "IdentitiesOnly=yes") }
 $sshArgs += $target
 
 Write-Host "Forwarding 127.0.0.1:$LocalPort  ->  $RemoteHost`:$RemotePort on $target (Ctrl+C to stop)"

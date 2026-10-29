@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Mail, ShieldCheck } from 'lucide-react'
+import { KeyRound, Mail, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Navigate, useLocation, useNavigate } from 'react-router'
@@ -26,7 +26,11 @@ export const signupSchema = z
 type LoginValues = z.infer<typeof loginSchema>
 type SignupValues = z.infer<typeof signupSchema>
 
-export function SignInForm({ onSubmit, onMagicLink }: { onSubmit: (v: LoginValues) => Promise<void>; onMagicLink: (email: string) => Promise<void> }) {
+export function SignInForm({ onSubmit, onMagicLink, onForgotPassword }: {
+  onSubmit: (v: LoginValues) => Promise<void>
+  onMagicLink: (email: string) => Promise<void>
+  onForgotPassword?: (email: string) => Promise<void>
+}) {
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const { register, handleSubmit, getValues, trigger, formState: { errors, isSubmitting } } = useForm<LoginValues>({ resolver: zodResolver(loginSchema) })
@@ -40,9 +44,21 @@ export function SignInForm({ onSubmit, onMagicLink }: { onSubmit: (v: LoginValue
   })
   const magic = async () => {
     if (!(await trigger('email'))) return
+    setError(null)
     try {
       await onMagicLink(getValues('email'))
-      setInfo('Check your inbox for a sign-in link.')
+      setInfo('If an account exists for this email, a sign-in link is on its way.')
+    } catch (e) {
+      setError(errorMessage(e))
+    }
+  }
+  const forgot = async () => {
+    if (!onForgotPassword || !(await trigger('email'))) return
+    setError(null)
+    try {
+      await onForgotPassword(getValues('email'))
+      // Same message whether or not the account exists, so the form does not reveal registered emails.
+      setInfo('If an account exists for this email, a password reset link is on its way.')
     } catch (e) {
       setError(errorMessage(e))
     }
@@ -55,6 +71,7 @@ export function SignInForm({ onSubmit, onMagicLink }: { onSubmit: (v: LoginValue
       {info && <p role="status" className="text-sm text-success">{info}</p>}
       <Button type="submit" className="w-full" loading={isSubmitting}>Sign in</Button>
       <Button type="button" variant="ghost" className="w-full" onClick={magic} leftIcon={<Mail className="h-4 w-4" aria-hidden />}>Email me a sign-in link</Button>
+      {onForgotPassword && <Button type="button" variant="ghost" className="w-full" onClick={forgot} leftIcon={<KeyRound className="h-4 w-4" aria-hidden />}>Forgot password?</Button>}
     </form>
   )
 }
@@ -82,11 +99,13 @@ export function SignUpForm({ onSubmit }: { onSubmit: (v: SignupValues) => Promis
 }
 
 export default function LoginPage() {
-  const { session, signIn, signUp, sendMagicLink } = useAuth()
+  const { session, recovering, signIn, signUp, sendMagicLink, sendPasswordReset } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const from = (location.state as { from?: string } | null)?.from ?? '/dashboard'
-  if (session) return <Navigate to={from} replace />
+  // A new account goes to onboarding; set before signUp resolves, because the session arrives first.
+  const [afterAuth, setAfterAuth] = useState<string | null>(null)
+  if (session) return <Navigate to={recovering ? '/reset-password' : afterAuth ?? from} replace />
   return (
     <main className="flex min-h-screen items-center justify-center bg-bg px-4 py-10">
       <div className="w-full max-w-md">
@@ -101,12 +120,18 @@ export default function LoginPage() {
           <Tabs
             label="Authentication"
             tabs={[
-              { id: 'signin', label: 'Sign in', content: <SignInForm onSubmit={async (v) => { await signIn(v.email, v.password); navigate(from, { replace: true }) }} onMagicLink={sendMagicLink} /> },
+              { id: 'signin', label: 'Sign in', content: <SignInForm onSubmit={async (v) => { await signIn(v.email, v.password); navigate(from, { replace: true }) }} onMagicLink={sendMagicLink} onForgotPassword={sendPasswordReset} /> },
               {
                 id: 'signup', label: 'Create account', content: (
                   <SignUpForm onSubmit={async (v) => {
-                    const { needsConfirmation } = await signUp(v.email, v.password)
-                    if (needsConfirmation) return 'Account created. Confirm your email address, then sign in.'
+                    setAfterAuth('/onboarding')
+                    try {
+                      const { needsConfirmation } = await signUp(v.email, v.password)
+                      if (needsConfirmation) return 'Account created. Confirm your email address, then sign in.'
+                    } catch (e) {
+                      setAfterAuth(null)
+                      throw e
+                    }
                     navigate('/onboarding', { replace: true })
                     return null
                   }} />

@@ -5,6 +5,7 @@ import { LoadingSkeleton } from '@/components/ui/States'
 import { useAuth } from '@/hooks/useAuth'
 import { supabaseConfigured } from '@/lib/supabase'
 import LoginPage from '@/pages/LoginPage'
+import ResetPasswordPage from '@/pages/ResetPasswordPage'
 
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
 const OnboardingPage = lazy(() => import('@/pages/OnboardingPage'))
@@ -23,8 +24,9 @@ const PreferencesPage = lazy(() => import('@/pages/PreferencesPage'))
 const OrganizePage = lazy(() => import('@/pages/OrganizePage'))
 
 function RequireAuth({ children }: { children: ReactNode }) {
-  const { session, loading } = useAuth()
+  const { session, loading, recovering } = useAuth()
   const location = useLocation()
+  if (recovering) return <Navigate to="/reset-password" replace />
   if (loading) return <div className="p-8"><LoadingSkeleton lines={4} label="Checking your session" /></div>
   if (!session) return <Navigate to="/login" replace state={{ from: location.pathname }} />
   return children
@@ -49,6 +51,7 @@ export default function App() {
       <Suspense fallback={<div className="p-8"><LoadingSkeleton lines={5} label="Loading page" /></div>}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route element={<RequireAuth><AppShell /></RequireAuth>}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="/onboarding" element={<OnboardingPage />} />

@@ -34,6 +34,12 @@ class GmailError(Exception):
         self.status = status
         self.reason = reason
 
+    def __str__(self) -> str:
+        # Status and Google's error reason are safe to log and make failures diagnosable.
+        detail = ", ".join(x for x in (f"HTTP {self.status}" if self.status else "", self.reason or "") if x)
+        base = super().__str__()
+        return f"{base} ({detail})" if detail else base
+
 
 class GmailAuthError(GmailError):
     """Credentials are invalid or revoked; the user must reconnect."""

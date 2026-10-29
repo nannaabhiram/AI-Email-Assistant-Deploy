@@ -10,6 +10,9 @@ export default defineConfig({
   timeout: 45_000,
   expect: { timeout: 10_000 },
   retries: 0,
+  // Every test signs in as the same seeded demo user; running them serially avoids races on shared rows
+  // (drafts, overrides) and the per-user API rate limit.
+  workers: 1,
   reporter: [['list']],
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5173',

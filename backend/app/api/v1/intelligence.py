@@ -19,7 +19,7 @@ from app.api.schemas import (
     SearchIn,
     SearchOut,
 )
-from app.db.models import BriefingRun, EmailAttachment
+from app.db.models import BriefingRun, EmailAttachment, Job
 from app.db.session import system_session, user_session
 from app.errors import NotFoundError
 from app.jobs.queue import enqueue
@@ -60,9 +60,16 @@ async def latest_briefing(user: CurrentUserDep) -> BriefingOut | None:
 @router.post("/briefings/generate", response_model=JobRef, status_code=202)
 async def generate(user: SensitiveUserDep) -> JobRef:
     async with system_session() as s:
+        key = f"briefing-manual:{user.id}"
         job_id = await enqueue(s, "generate_briefing", {"user_id": str(user.id)}, user_id=user.id,
-                               dedupe_key=f"briefing-manual:{user.id}", priority=5)
-    return JobRef(job_id=job_id, status="queued" if job_id else "already_queued")
+                               dedupe_key=key, priority=5)
+        if job_id is None:
+            # Clicked while one is pending: hand back that job so the UI keeps tracking it.
+            existing = (await s.execute(select(Job.id).where(
+                Job.job_type == "generate_briefing", Job.dedupe_key == key, Job.user_id == user.id,
+                Job.status.in_(["queued", "running"])))).scalar_one_or_none()
+            return JobRef(job_id=existing, status="already_queued")
+    return JobRef(job_id=job_id, status="queued")
 
 
 # --- Attachments -------------------------------------------------------------------------

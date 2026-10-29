@@ -253,9 +253,19 @@ async def revoke_and_disconnect(user_id: UUID, account_id: UUID, delete_data: bo
             raise NotFoundError("Connected account not found")
         cred = await session.get(OAuthCredential, account_id)
         refresh_token = decrypt(cred.encrypted_refresh_token) if cred else None
+        # Google revokes the whole grant (this app + this Gmail user), not just one token. If the same
+        # mailbox is still connected elsewhere (e.g. moved from another MailPilot user), revoking here
+        # would silently break that connection, so only forget our copy of the tokens.
+        shared = (await session.execute(
+            select(ConnectedAccount.id).where(
+                ConnectedAccount.id != account_id, ConnectedAccount.provider == account.provider,
+                ConnectedAccount.email_address == account.email_address,
+                ConnectedAccount.status.in_([AccountStatus.active, AccountStatus.needs_reauth]),
+            ).limit(1)
+        )).scalar_one_or_none() is not None
 
     revoked = False
-    if refresh_token and get_settings().gmail_configured:
+    if refresh_token and get_settings().gmail_configured and not shared:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(get_settings().google_oauth_revoke_url, data={"token": refresh_token})
@@ -279,4 +289,5 @@ async def revoke_and_disconnect(user_id: UUID, account_id: UUID, delete_data: bo
                 await session.delete(cred)
         record_audit(session, user_id=user_id if not delete_data else user_id, event="gmail.disconnected",
                      entity_type="connected_account", entity_id=account_id,
-                     details={"revoked_at_google": revoked, "data_deleted": delete_data})
+                     details={"revoked_at_google": revoked, "revocation_skipped_shared_grant": shared,
+                              "data_deleted": delete_data})

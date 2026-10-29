@@ -19,7 +19,7 @@ test('login form validates input before contacting the server', async ({ page })
   await page.getByLabel('Email').fill(DEMO.email)
   await page.getByLabel('Password').fill('wrong-password')
   await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-  await expect(page.getByRole('alert')).toContainText(/invalid/i)
+  await expect(page.getByRole('alert')).toContainText('Incorrect email or password')
 })
 
 test('dashboard shows counts, status and inference health', async ({ page }) => {
@@ -27,7 +27,21 @@ test('dashboard shows counts, status and inference health', async ({ page }) => 
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Good')
   await expect(page.getByRole('link', { name: /High priority \(7d\)/ })).toBeVisible()
   await expect(page.getByText('DGX inference', { exact: true })).toBeVisible()
-  await expect(page.getByText(/No DGX inference endpoint is configured/)).toBeVisible()
+  // The banner must match the live inference state reported by the API (Spark 2 may or may not be up).
+  const state = await page.evaluate(async () => {
+    const key = Object.keys(localStorage).find((k) => k.endsWith('-auth-token'))
+    const token = key ? (JSON.parse(localStorage.getItem(key)!) as { access_token: string }).access_token : ''
+    const res = await fetch('http://localhost:8000/api/v1/system/status', { headers: { Authorization: `Bearer ${token}` } })
+    return ((await res.json()) as { llm: { state: string } }).llm.state
+  })
+  const banners: Record<string, RegExp> = {
+    not_configured: /No DGX inference endpoint is configured/, unreachable: /DGX inference is offline/,
+    model_missing: /does not serve the configured model/,
+  }
+  for (const [s, text] of Object.entries(banners)) {
+    if (s === state) await expect(page.getByText(text)).toBeVisible()
+    else await expect(page.getByText(text)).toHaveCount(0)
+  }
   await expect(page.getByRole('list', { name: 'Important emails' })).toContainText('Q4 vendor contract renewal')
   await page.screenshot({ path: `e2e/screenshots/dashboard-${test.info().project.name}.png`, fullPage: true })
 })
@@ -67,16 +81,21 @@ test('phishing email shows security warnings and the safety disclaimer', async (
 test('natural-language search finds the last quotation', async ({ page }) => {
   await signIn(page)
   await page.goto('/search')
+  test.setTimeout(120_000)
   await page.getByRole('button', { name: 'Find the last quotation someone sent me' }).click()
-  await expect(page.getByRole('region', { name: 'Search results' })).toContainText('Quotation for 40 laptops')
+  // With Spark 2 available the query is parsed by the model, which can take tens of seconds.
+  await expect(page.getByRole('region', { name: 'Search results' })).toContainText('Quotation for 40 laptops', { timeout: 90_000 })
 })
 
 test('drafting a reply cannot be sent without send permission and approval', async ({ page }) => {
   await signIn(page)
-  await page.goto('/inbox')
+  await page.goto(`/inbox?q=${encodeURIComponent('Design review sync')}`)
   await page.getByRole('button', { name: /Design review sync on Thursday/ }).click()
   await page.getByRole('button', { name: 'Draft reply' }).click()
   const dialog = page.getByRole('dialog', { name: 'Draft a reply' })
+  // Keep the test independent of the DGX: never generate text, always start from a blank draft.
+  const useAi = dialog.getByRole('checkbox', { name: /Write the first version with AI/ })
+  if (await useAi.isChecked()) await useAi.uncheck()
   await dialog.getByRole('button', { name: 'Start blank draft' }).click()
   await expect(page.getByRole('heading', { name: 'Reply drafts' })).toBeVisible()
   await page.getByRole('textbox', { name: 'Message' }).fill('Hi Arjun, Thursday 3 PM works for me.')

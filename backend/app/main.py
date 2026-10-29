@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import os
 import re
 import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,8 +29,10 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     if settings.environment == "production" and settings.log_email_bodies:
         raise RuntimeError("LOG_EMAIL_BODIES must not be enabled in production")
-    log.info("api_started", environment=settings.environment, llm_configured=settings.llm_configured,
-             gmail_configured=settings.gmail_configured)
+    endpoint = urlparse(settings.dgx_llm_api_base_url) if settings.dgx_llm_api_base_url else None
+    log.info("api_started", environment=settings.environment, pid=os.getpid(), llm_configured=settings.llm_configured,
+             llm_endpoint=f"{endpoint.hostname}:{endpoint.port}" if endpoint else None,
+             llm_model=settings.dgx_llm_model or None, gmail_configured=settings.gmail_configured)
     yield
     service = get_llm_service()
     if service.provider is not None:

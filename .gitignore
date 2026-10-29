@@ -32,6 +32,9 @@ frontend/e2e/screenshots/
 *.tsbuildinfo
 *.log
 
+# --- Launcher state and logs (npm start) -------------------------------------
+.mailpilot/
+
 # --- Supabase local ------------------------------------------------------------
 supabase/.temp/
 supabase/.branches/

@@ -28,6 +28,10 @@ Local values:
 | `SUPABASE_SERVICE_ROLE_KEY` | "Secret key" from `supabase status` (backend only) |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | "Publishable key" from `supabase status` |
 
+**Auth emails stay on your machine.** Local Supabase never delivers real email. Password-reset, magic-link and confirmation emails go to the local mail catcher (Mailpit) at <http://127.0.0.1:55324>, even when the address is a real Gmail address. Open that page to click the link.
+
+**Demo account.** `seed.sql` creates `demo@mailpilot.test` / `mailpilot-demo-password` with sample emails and marks it `app_metadata.demo = true`. The app shows a "demo account" banner for it, and the API refuses to connect a real Gmail mailbox to it (`demo_account`). Use your own account for real mail. The browser remembers the last session, so sign out of the demo account first.
+
 ### Hosted project (production)
 
 1. Create a project at <https://supabase.com/dashboard>.
@@ -95,9 +99,16 @@ Only public values belong here. They are compiled into the browser bundle.
 
 ## 5. Run
 
+From the project root, in any terminal (VS Code is fine):
+
 ```powershell
-.\scripts\dev.ps1 -Storybook
+npm start          # checks prerequisites, opens the Spark 2 tunnel, starts API, worker and frontend, opens the browser
+npm run status     # what is running, and whether Spark 2 serves the configured model
+npm stop           # stops everything npm start started (safe to run twice, works from a new terminal)
+npm run restart    # stop + start, e.g. after editing backend\.env
 ```
+
+`npm start -- --no-browser` skips opening the browser; `npm start -- --require-dgx` fails instead of starting in rule-based mode when Spark 2 is unavailable. `.\scripts\dev.ps1 -Storybook` does the same as `npm start` and also opens Storybook. See OPERATIONS.md, "Local lifecycle", for details.
 
 Or start each part manually:
 

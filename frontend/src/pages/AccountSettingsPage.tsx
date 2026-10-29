@@ -13,13 +13,25 @@ import { useAuth } from '@/hooks/useAuth'
 import { keys, useAccounts, useAction, useAudit, useJobs, useLlmDiagnostics } from '@/hooks/queries'
 import { api } from '@/lib/api'
 import { formatDateTime, humanize, relativeTime } from '@/lib/format'
-import type { ConnectedAccount } from '@/lib/types'
+import { inferenceState, type ConnectedAccount, type InferenceState } from '@/lib/types'
 
 const OAUTH_ERRORS: Record<string, string> = {
   access_denied: 'You declined access in Google. Nothing was connected.',
   invalid_oauth_state: 'The authorization link expired or was already used. Please try again.',
   scope_not_granted: 'Gmail read permission was not granted.',
   missing_refresh_token: 'Google did not return a refresh token. Remove MailPilot from your Google account permissions and reconnect.',
+}
+
+const INFERENCE_BADGES: Record<InferenceState, { tone: 'success' | 'warning' | 'danger'; label: string }> = {
+  available: { tone: 'success', label: 'Available' },
+  model_missing: { tone: 'danger', label: 'Model not served' },
+  unreachable: { tone: 'danger', label: 'Unreachable' },
+  not_configured: { tone: 'warning', label: 'Not configured' },
+}
+
+export function InferenceBadge({ state }: { state: InferenceState }) {
+  const b = INFERENCE_BADGES[state]
+  return <Badge tone={b.tone}>{b.label}</Badge>
 }
 
 export default function AccountSettingsPage() {
@@ -96,7 +108,7 @@ export default function AccountSettingsPage() {
       <Card title="DGX Spark inference" actions={<Button size="sm" variant="ghost" loading={llm.isFetching} onClick={() => void llm.refetch()} leftIcon={<Cpu className="h-4 w-4" aria-hidden />}>Re-check</Button>}>
         {llm.isLoading ? <LoadingSkeleton lines={3} /> : llm.error ? <ErrorState error={llm.error} /> : llm.data && (
           <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-            <div><dt className="text-fg-muted">Status</dt><dd>{!llm.data.configured ? <Badge tone="warning">Not configured</Badge> : llm.data.reachable ? <Badge tone="success">Reachable</Badge> : <Badge tone="danger">Unreachable</Badge>}</dd></div>
+            <div><dt className="text-fg-muted">Status</dt><dd><InferenceBadge state={inferenceState(llm.data)} /></dd></div>
             <div><dt className="text-fg-muted">Endpoint</dt><dd className="font-mono text-fg">{llm.data.endpoint_host ?? '—'}{llm.data.via_ssh_tunnel && ' (SSH tunnel)'}</dd></div>
             <div><dt className="text-fg-muted">Model</dt><dd className="text-fg">{llm.data.configured_model ?? '—'} {llm.data.reachable && (llm.data.model_available ? <Badge tone="success">served</Badge> : <Badge tone="danger">not served</Badge>)}</dd></div>
             <div><dt className="text-fg-muted">Latency</dt><dd className="text-fg">{llm.data.latency_ms != null ? `${llm.data.latency_ms} ms` : '—'}</dd></div>

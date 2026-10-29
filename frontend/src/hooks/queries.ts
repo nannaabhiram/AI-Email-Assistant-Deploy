@@ -92,7 +92,7 @@ export function useAction<TArgs, TResult>(
 }
 
 /** Polls a background job until it finishes; invalidates the given queries when it does. */
-export function useJobWatcher(invalidate: QueryKey[]) {
+export function useJobWatcher(invalidate: QueryKey[], onSucceeded?: () => void) {
   const qc = useQueryClient()
   const toast = useToast()
   const [jobId, setJobId] = useState<number | null>(null)
@@ -106,6 +106,7 @@ export function useJobWatcher(invalidate: QueryKey[]) {
     if (status === 'succeeded') {
       invalidate.forEach((k) => void qc.invalidateQueries({ queryKey: k }))
       setJobId(null)
+      onSucceeded?.()
     } else if (status === 'failed' || status === 'dead') {
       toast.error('Background task failed', job.data?.last_error ?? undefined)
       setJobId(null)

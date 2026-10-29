@@ -103,14 +103,20 @@ async def generate_briefing(user_id: UUID, llm: LLMService | None = None, briefi
     async with system_session() as s:
         settings = await s.get(UserSettings, user_id)
         tz_name = settings.timezone if settings else "UTC"
-        previous = (await s.execute(
-            select(BriefingRun.created_at).where(BriefingRun.user_id == user_id, BriefingRun.status == "succeeded")
-            .order_by(BriefingRun.created_at.desc()).limit(1)
-        )).scalar_one_or_none()
     local_date = briefing_date or datetime.now(UTC).astimezone(ZoneInfo(tz_name)).date()
+    async with system_session() as s:
+        # "Since the last briefing" means the previous day's briefing. Regenerating today's briefing
+        # replaces it, so today's own earlier run must not shrink the window (that produced all-zero counts).
+        previous = (await s.execute(
+            select(BriefingRun.created_at).where(BriefingRun.user_id == user_id, BriefingRun.status == "succeeded",
+                                                 BriefingRun.briefing_date < local_date)
+            .order_by(BriefingRun.briefing_date.desc()).limit(1)
+        )).scalar_one_or_none()
     content = await build_briefing_content(user_id, tz_name, previous)
-    narrative, source = None, "rules"
-    if llm.available:
+    narrative, source, error = None, "rules", None
+    if not llm.available:
+        error = "AI narrative skipped: remote inference is not configured"
+    else:
         try:
             out, _ = await llm.generate(
                 task="daily_briefing", system_prompt=BRIEFING_SYSTEM,
@@ -120,14 +126,15 @@ async def generate_briefing(user_id: UUID, llm: LLMService | None = None, briefi
             )
             narrative, source = f"{out.headline}\n\n{out.narrative}", "hybrid"
             content["llm_recommended_actions"] = out.recommended_actions
-        except LLMError:
-            pass
+        except LLMError as exc:
+            # Keep the factual rule-based briefing, but record why the AI narrative is missing.
+            error = f"AI narrative unavailable ({exc.code}): {str(exc)[:200]}"
     async with system_session() as s:
         stmt = pg_insert(BriefingRun).values(user_id=user_id, briefing_date=local_date, status="succeeded",
-                                             source=source, content=content, narrative=narrative)
+                                             source=source, content=content, narrative=narrative, error=error)
         await s.execute(stmt.on_conflict_do_update(
             index_elements=["user_id", "briefing_date"],
-            set_={"content": stmt.excluded.content, "narrative": stmt.excluded.narrative,
+            set_={"content": stmt.excluded.content, "narrative": stmt.excluded.narrative, "error": stmt.excluded.error,
                   "source": stmt.excluded.source, "status": "succeeded", "created_at": datetime.now(UTC)},
         ))
         run = (await s.execute(select(BriefingRun).where(BriefingRun.user_id == user_id,

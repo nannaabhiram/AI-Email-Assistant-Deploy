@@ -1,5 +1,26 @@
 # Operations
 
+## Local lifecycle (Windows): `npm start` / `npm stop`
+
+Run from the project root (`scripts\launcher\`, no extra dependencies; Node ≥ 20).
+
+| Command | What it does |
+|---|---|
+| `npm start` | 8 checked steps: project, venv, packages and `.env` files → previous MailPilot processes and ports 5173 / 8000 / 18000 → Supabase (starts it if Docker is up) → SSH key login to Spark 2 → tunnel to Ollama and check that `DGX_LLM_MODEL` is served → API until `/health/ready` → worker until `worker_started` → Vite until it answers. Then it opens the browser and prints the time taken. If it is already running and healthy, it only says so. |
+| `npm stop` | Stops frontend, API, worker and the tunnel (whole process trees), then frees the ports. Safe to repeat, and works from a new terminal or after a reboot. |
+| `npm run status` | Each component, plus whether Spark 2 is reachable and serves the model. |
+| `npm run restart` | Stop, then start. Use it after editing `backend\.env`. |
+
+- **Process ownership:** `.mailpilot\processes.json` records each component's PID and creation time. A PID that Windows has since reused for another program never matches, so it is never stopped. MailPilot processes from older terminals or `dev.ps1` are recognised by their command line (this project's path plus the component) and cleaned up too. Nothing is ever stopped by program name, and unrelated `python.exe`, `node.exe` or `ssh.exe` processes are left alone.
+- **Port conflicts:** if a foreign program holds port 5173 or 8000, `npm start` stops and names it instead of killing it. An existing tunnel on 18000 that already serves the model is reused, not managed.
+- **Spark 2 unavailable:** the app still starts, clearly marked "WITHOUT AI inference", and analysis is rule-based. Use `npm start -- --require-dgx` to fail instead. The model is never swapped for another one.
+- **Failures and Ctrl+C:** if a step fails or you press Ctrl+C, everything started by that run is stopped and the last log lines are shown.
+- **Only one launcher at a time:** `.mailpilot\launcher.lock`. A lock left by a closed terminal is detected and replaced.
+- **Logs:** `.mailpilot\logs\{tunnel,api,worker,frontend}.log`.
+- **Not touched by `npm stop`:** Supabase in Docker (stop it with `npx supabase@2.122.0 stop`), DGX Spark 2 and its Ollama service (only the local tunnel closes), and browser tabs (a tab cannot be identified and closed safely from outside the browser).
+- **Timeouts** (seconds, environment variables): `MAILPILOT_API_TIMEOUT` (90), `MAILPILOT_WORKER_TIMEOUT` (60), `MAILPILOT_FRONTEND_TIMEOUT` (60), `MAILPILOT_TUNNEL_TIMEOUT` (30), `MAILPILOT_SUPABASE_TIMEOUT` (600), `MAILPILOT_STOP_GRACE` (5).
+- **Tunnel:** the background tunnel is `scripts\launcher\tunnel.mjs`, which reconnects with backoff. It uses the same settings as `scripts\dgx-tunnel.ps1`, which remains for a visible, interactive tunnel window. Windows PowerShell cannot run without a console, so the launcher can't use it for the background tunnel.
+
 ## Deployment
 
 1. **Database:** a hosted Supabase project. Apply the schema with `npx supabase@2.122.0 db push` (see SETUP.md).
@@ -50,6 +71,8 @@ Configuration is separated by environment: `ENVIRONMENT` is `development`, `test
 | Gmail `redirect_uri_mismatch` | `GOOGLE_REDIRECT_URI` must equal the URI registered in Google Cloud exactly. |
 | Account repeatedly `needs_reauth` after ~7 days | The OAuth app is in *Testing* status (7-day refresh tokens). Publish it, or reconnect. |
 | "No DGX inference endpoint is configured" | Fill in `DGX_*` and run `scripts/dgx_check.py` (see DGX_SPARK.md). |
+| UI says "Not configured" but the API log says `llm_configured=True` | An older API process still owns port 8000 and keeps the settings it started with. On Windows a second instance starts but never receives requests. Run `npm run restart`, which stops every MailPilot process (managed or left over) before starting. `npm start` refuses to start next to a foreign program on 8000, and the API reloads automatically when `backend\.env` changes. The startup log shows `pid`, `llm_endpoint` and `llm_model`. |
+| DGX status "Unreachable" | `.env` is fine, but the tunnel is down. Start `.\scripts\dgx-tunnel.ps1` (spark2) and click Re-check. |
 | DGX check: model "not served" | `DGX_LLM_MODEL` must match an ID from `/v1/models` exactly. |
 | DGX check: structured completion fails | Set `DGX_LLM_STRUCTURED_OUTPUT=json_object` (or `prompt`). |
 | `decrypt_failed` | `TOKEN_ENCRYPTION_KEY` changed. Restore it, or have users reconnect. |

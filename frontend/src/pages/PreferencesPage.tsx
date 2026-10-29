@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -12,6 +12,7 @@ import { Card, ErrorState, LoadingSkeleton } from '@/components/ui/States'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { keys, useAction, useSettings } from '@/hooks/queries'
 import { api } from '@/lib/api'
+import { canonicalTimezone, timezoneOptions } from '@/lib/timezones'
 import type { Settings } from '@/lib/types'
 
 const num = (min: number, max: number) => z.coerce.number().min(min, `Minimum ${min}`).max(max, `Maximum ${max}`)
@@ -46,7 +47,7 @@ type FormInput = z.input<typeof preferencesSchema>
 
 function toForm(s: Settings): FormValues {
   return {
-    timezone: s.timezone, briefing_enabled: s.briefing_enabled, briefing_time: s.briefing_time.slice(0, 5),
+    timezone: canonicalTimezone(s.timezone), briefing_enabled: s.briefing_enabled, briefing_time: s.briefing_time.slice(0, 5),
     notify_in_app: s.notification_prefs.in_app ?? true, notify_reminders: s.notification_prefs.reminders ?? true, notify_briefing: s.notification_prefs.briefing ?? true,
     threshold_high: s.priority_thresholds.high, threshold_medium: s.priority_thresholds.medium,
     w_deadline: s.scoring_weights.deadline, w_action: s.scoring_weights.action, w_impact: s.scoring_weights.impact, w_sender: s.scoring_weights.sender, w_context: s.scoring_weights.context,
@@ -58,19 +59,12 @@ function toForm(s: Settings): FormValues {
   }
 }
 
-const TIMEZONES: string[] = (() => {
-  try {
-    return (Intl as unknown as { supportedValuesOf: (k: string) => string[] }).supportedValuesOf('timeZone')
-  } catch {
-    return ['UTC', 'Asia/Kolkata', 'Europe/London', 'America/New_York']
-  }
-})()
-
 export default function PreferencesPage() {
   const settings = useSettings()
   const [wipe, setWipe] = useState(false)
   const form = useForm<FormInput, unknown, FormValues>({ resolver: zodResolver(preferencesSchema) })
   const { register, handleSubmit, reset, formState: { errors, isDirty } } = form
+  const timezones = useMemo(() => timezoneOptions(settings.data && canonicalTimezone(settings.data.timezone)), [settings.data])
   useEffect(() => { if (settings.data) reset(toForm(settings.data)) }, [settings.data, reset])
 
   const save = useAction((v: FormValues) => api.updateSettings({
@@ -94,7 +88,7 @@ export default function PreferencesPage() {
       <Card title="Appearance"><ThemeToggle /></Card>
       <Card title="Daily briefing & notifications">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Select label="Timezone" options={TIMEZONES.map((t) => ({ value: t, label: t }))} {...register('timezone')} />
+          <Select label="Timezone" options={timezones} {...register('timezone')} />
           <Input label="Briefing time" type="time" error={errors.briefing_time?.message} {...register('briefing_time')} />
           <Checkbox label="Generate a daily briefing" {...register('briefing_enabled')} />
           <Checkbox label="In-app notifications" {...register('notify_in_app')} />

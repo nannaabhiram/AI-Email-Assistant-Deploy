@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Always backend/.env, whatever the process's working directory is.
+ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=ENV_FILE, env_file_encoding="utf-8", extra="ignore")
 
     # --- General -----------------------------------------------------------
     environment: Literal["development", "test", "production"] = "development"
@@ -45,7 +50,7 @@ class Settings(BaseSettings):
     google_oauth_token_url: str = "https://oauth2.googleapis.com/token"
     google_oauth_revoke_url: str = "https://oauth2.googleapis.com/revoke"
     gmail_max_retries: int = 5
-    gmail_fetch_concurrency: int = 8
+    gmail_fetch_concurrency: int = 4
     sync_interval_minutes: int = 10
 
     # --- DGX Spark remote inference ------------------------------------------
@@ -101,8 +106,29 @@ class Settings(BaseSettings):
         return v
 
     @property
+    def llm_endpoint_problem(self) -> str | None:
+        """Why the inference endpoint may not be used, or None.
+
+        Private email may only go to the configured DGX: either through the SSH tunnel (a loopback
+        address on this machine) or directly to DGX_SSH_HOST on the private network. Any other host,
+        such as a cloud API or a different DGX, is refused, so a typo can never leak mail elsewhere.
+        """
+        if not self.dgx_llm_api_base_url:
+            return None
+        url = urlparse(self.dgx_llm_api_base_url)
+        if url.scheme not in {"http", "https"} or not url.hostname:
+            return "DGX_LLM_API_BASE_URL must be an http(s) URL"
+        host = url.hostname.lower()
+        if host in {"127.0.0.1", "localhost", "::1"}:
+            return None
+        if self.dgx_ssh_host and host == self.dgx_ssh_host.lower():
+            return None
+        return (f"DGX_LLM_API_BASE_URL host '{host}' is not the configured DGX (DGX_SSH_HOST="
+                f"'{self.dgx_ssh_host or 'unset'}') or a local SSH tunnel; refusing to send email content there")
+
+    @property
     def llm_configured(self) -> bool:
-        return bool(self.dgx_llm_api_base_url and self.dgx_llm_model)
+        return bool(self.dgx_llm_api_base_url and self.dgx_llm_model) and self.llm_endpoint_problem is None
 
     @property
     def gmail_configured(self) -> bool:

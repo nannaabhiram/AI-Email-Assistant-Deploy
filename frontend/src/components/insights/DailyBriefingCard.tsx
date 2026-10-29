@@ -55,6 +55,9 @@ export function DailyBriefingCard({ briefing, onGenerate, generating, compact = 
         <span className="text-xs text-fg-subtle">Generated {relativeTime(briefing.created_at)}</span>
         {onGenerate && <Button className="ml-auto" size="sm" variant="ghost" onClick={onGenerate} loading={generating} leftIcon={<RefreshCw className="h-4 w-4" aria-hidden />}>Regenerate</Button>}
       </div>
+      {briefing.source === 'rules' && briefing.error && (
+        <p className="text-xs text-fg-subtle">No AI narrative: {briefing.error}</p>
+      )}
       {briefing.narrative && (
         <div className="rounded-md bg-primary-soft p-3">
           <p className="text-sm font-semibold text-fg">{headline}</p>

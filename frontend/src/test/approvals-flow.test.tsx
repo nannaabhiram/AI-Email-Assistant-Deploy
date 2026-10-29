@@ -30,7 +30,8 @@ afterEach(() => vi.restoreAllMocks())
 describe('Approvals page', () => {
   it('approves exactly the reviewed send request', async () => {
     configureApi(async () => 'test-token', () => undefined)
-    const pending = approvals[0]!
+    // Fixtures use fixed dates; this page compares against the real clock, so keep the request unexpired.
+    const pending = { ...approvals[0]!, expires_at: new Date(Date.now() + 3_600_000).toISOString() }
     const calls: { url: string; init?: RequestInit }[] = []
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input)

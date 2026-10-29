@@ -443,6 +443,7 @@ class BriefingOut(ORM):
     source: str
     content: dict[str, Any]
     narrative: str | None
+    error: str | None = None
     created_at: datetime
 
 
@@ -583,6 +584,7 @@ class ProfileOut(BaseModel):
     id: UUID
     email: str | None
     display_name: str | None
+    is_demo: bool = False
     accounts: list[AccountOut]
     settings: SettingsOut | None
 

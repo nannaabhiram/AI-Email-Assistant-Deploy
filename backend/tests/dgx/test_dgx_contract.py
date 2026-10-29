@@ -6,7 +6,6 @@ configured or reachable they are skipped and must be reported as BLOCKED, not pa
 """
 
 import os
-from pathlib import Path
 
 import pytest
 from pydantic import BaseModel
@@ -15,9 +14,14 @@ pytestmark = pytest.mark.dgx
 
 
 def _settings():  # type: ignore[no-untyped-def]
-    from app.config import Settings
+    from dotenv import dotenv_values
 
-    return Settings(_env_file=Path(__file__).resolve().parents[2] / ".env")  # type: ignore[call-arg]
+    from app.config import ENV_FILE, Settings
+
+    # conftest blanks DGX_* environment variables to isolate the other tests, and environment
+    # variables outrank the .env file, so pass the real file values explicitly.
+    dgx = {k.lower(): v for k, v in dotenv_values(ENV_FILE).items() if k.startswith("DGX_") and v}
+    return Settings(**dgx)
 
 
 @pytest.fixture

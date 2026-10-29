@@ -20,6 +20,7 @@ from app.db.session import dispose_engine, system_session
 from app.jobs.handlers import (
     HANDLERS,
     PermanentFailure,
+    RetryAfter,
     RetryLater,
     schedule_periodic_jobs,
 )
@@ -58,6 +59,11 @@ class Worker:
             async with system_session() as s:
                 await defer(s, job, self.worker_id, exc.seconds, str(exc))
             log.info("job_deferred", job_id=job.id, job_type=job.job_type, reason=str(exc))
+        except RetryAfter as exc:
+            async with system_session() as s:
+                status = await fail(s, job, self.worker_id, str(exc), min_delay=exc.seconds)
+            log.warning("job_failed", job_id=job.id, job_type=job.job_type, attempt=job.attempts,
+                        next_status=status.value, error=str(exc))
         except PermanentFailure as exc:
             async with system_session() as s:
                 await fail(s, job, self.worker_id, str(exc), retryable=False)

@@ -10,7 +10,7 @@ insert into auth.users (
   '00000000-0000-0000-0000-000000000000', '00000000-0000-4000-a000-000000000001',
   'authenticated', 'authenticated', 'demo@mailpilot.test',
   extensions.crypt('mailpilot-demo-password', extensions.gen_salt('bf')), now(),
-  '{"provider":"email","providers":["email"]}', '{"full_name":"Demo User"}', now(), now(),
+  '{"provider":"email","providers":["email"],"demo":true}', '{"full_name":"Demo User"}', now(), now(),
   '', '', '', ''
 ) on conflict (id) do nothing;
 

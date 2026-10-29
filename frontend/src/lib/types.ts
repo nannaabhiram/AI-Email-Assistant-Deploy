@@ -392,6 +392,8 @@ export interface Briefing {
   source: 'llm' | 'rules' | 'hybrid'
   content: BriefingContent
   narrative: string | null
+  /** Why the AI narrative is missing (rule-based briefings only). */
+  error?: string | null
   created_at: string
 }
 
@@ -449,6 +451,8 @@ export interface Profile {
   id: string
   email: string | null
   display_name: string | null
+  /** Seeded sample-data account (local development only). */
+  is_demo?: boolean
   accounts: ConnectedAccount[]
   settings: Settings | null
 }
@@ -472,6 +476,8 @@ export interface Job {
 }
 
 export interface SystemStatus {
+  /** No background worker is processing due jobs. */
+  worker?: { stalled: boolean; oldest_waiting_seconds: number }
   accounts: {
     id: string
     email: string
@@ -483,6 +489,7 @@ export interface SystemStatus {
   jobs: Record<string, number>
   recent_job_failures: { job_type: string; error: string; at: string }[]
   llm: {
+    state?: InferenceState
     configured: boolean
     reachable: boolean
     model: string | null
@@ -558,7 +565,18 @@ export interface NewsletterDigest {
   note: string
 }
 
+export type InferenceState = 'not_configured' | 'unreachable' | 'model_missing' | 'available'
+
+/** Older API builds send no `state`; derive it from the flags so the UI never mislabels a configured endpoint. */
+export function inferenceState(d: { state?: InferenceState; configured: boolean; reachable: boolean; model_available: boolean }): InferenceState {
+  if (d.state) return d.state
+  if (!d.configured) return 'not_configured'
+  if (!d.reachable) return 'unreachable'
+  return d.model_available ? 'available' : 'model_missing'
+}
+
 export interface LlmDiagnostics {
+  state?: InferenceState
   configured: boolean
   reachable: boolean
   latency_ms: number | null
