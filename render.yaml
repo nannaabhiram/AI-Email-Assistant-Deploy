@@ -1,0 +1,120 @@
+# Render Blueprint for MailPilot AI: API + worker (Docker), Redis (Key Value), React static site.
+# Supabase (DB/Auth/Storage) stays hosted separately. Values marked sync:false are entered in the
+# Render dashboard on first Blueprint apply; the worker copies them from the API service.
+services:
+  - type: web
+    name: mailpilot-api
+    runtime: docker
+    region: singapore
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health/ready
+    buildFilter:
+      paths: ["backend/**"]
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_EMAIL_BODIES
+        value: "false"
+      - key: DATABASE_STATEMENT_CACHE_SIZE
+        value: "0"
+      - key: LLM_FALLBACK_MODE
+        value: rules
+      - key: RATE_LIMIT_REDIS_URL
+        fromService: { type: keyvalue, name: mailpilot-redis, property: connectionString }
+      - key: API_BASE_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+  - type: worker
+    name: mailpilot-worker
+    runtime: docker
+    region: singapore
+    plan: starter
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: python -m app.jobs.worker
+    buildFilter:
+      paths: ["backend/**"]
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_EMAIL_BODIES
+        value: "false"
+      - key: DATABASE_STATEMENT_CACHE_SIZE
+        value: "0"
+      - key: LLM_FALLBACK_MODE
+        value: rules
+      - key: API_BASE_URL
+        fromService: { type: web, name: mailpilot-api, envVarKey: API_BASE_URL }
+      - key: FRONTEND_URL
+        fromService: { type: web, name: mailpilot-api, envVarKey: FRONTEND_URL }
+      - key: GOOGLE_REDIRECT_URI
+        fromService: { type: web, name: mailpilot-api, envVarKey: GOOGLE_REDIRECT_URI }
+      - key: SUPABASE_URL
+        fromService: { type: web, name: mailpilot-api, envVarKey: SUPABASE_URL }
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        fromService: { type: web, name: mailpilot-api, envVarKey: SUPABASE_SERVICE_ROLE_KEY }
+      - key: DATABASE_URL
+        fromService: { type: web, name: mailpilot-api, envVarKey: DATABASE_URL }
+      - key: TOKEN_ENCRYPTION_KEY
+        fromService: { type: web, name: mailpilot-api, envVarKey: TOKEN_ENCRYPTION_KEY }
+      - key: GOOGLE_CLIENT_ID
+        fromService: { type: web, name: mailpilot-api, envVarKey: GOOGLE_CLIENT_ID }
+      - key: GOOGLE_CLIENT_SECRET
+        fromService: { type: web, name: mailpilot-api, envVarKey: GOOGLE_CLIENT_SECRET }
+
+  - type: keyvalue
+    name: mailpilot-redis
+    region: singapore
+    plan: free
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
+
+  - type: web
+    name: mailpilot-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    buildFilter:
+      paths: ["frontend/**"]
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - { path: /*, name: X-Content-Type-Options, value: nosniff }
+      - { path: /*, name: X-Frame-Options, value: DENY }
+      - { path: /*, name: Referrer-Policy, value: no-referrer }
+      - { path: /*, name: Permissions-Policy, value: "camera=(), microphone=(), geolocation=()" }
+      - { path: /assets/*, name: Cache-Control, value: "public, max-age=31536000, immutable" }
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: VITE_API_BASE_URL
+        sync: false
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        sync: false
