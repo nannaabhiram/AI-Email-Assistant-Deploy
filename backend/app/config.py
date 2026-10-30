@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     dgx_remote_llm_port: int | None = None
     dgx_local_tunnel_port: int | None = None
     dgx_llm_api_base_url: str = ""  # e.g. http://127.0.0.1:18000/v1 (via SSH tunnel)
+    # Public HTTPS hostname of a tunnel that terminates on the DGX (e.g. Cloudflare Tunnel), for hosted
+    # deployments that cannot reach the private network. Only accepted over https with DGX_LLM_API_KEY set.
+    dgx_tunnel_host: str = ""
     dgx_llm_model: str = ""
     dgx_llm_api_key: SecretStr = SecretStr("")
     dgx_llm_api_style: Literal["openai"] = "openai"
@@ -126,6 +129,12 @@ class Settings(BaseSettings):
         if host in {"127.0.0.1", "localhost", "::1"}:
             return None
         if self.dgx_ssh_host and host == self.dgx_ssh_host.lower():
+            return None
+        if self.dgx_tunnel_host and host == self.dgx_tunnel_host.strip().lower():
+            if url.scheme != "https":
+                return "DGX_TUNNEL_HOST must be reached over https"
+            if not self.dgx_llm_api_key.get_secret_value():
+                return "DGX_LLM_API_KEY is required when using DGX_TUNNEL_HOST"
             return None
         return (f"DGX_LLM_API_BASE_URL host '{host}' is not the configured DGX (DGX_SSH_HOST="
                 f"'{self.dgx_ssh_host or 'unset'}') or a local SSH tunnel; refusing to send email content there")

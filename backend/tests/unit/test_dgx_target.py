@@ -4,6 +4,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from pydantic import SecretStr
 
 from app.config import Settings, get_settings
 from app.llm.base import LLMNotConfiguredError, LLMUnavailableError
@@ -48,6 +49,20 @@ async def test_refused_endpoint_is_reported_in_health_and_never_called() -> None
     with pytest.raises(LLMNotConfiguredError):
         await service.generate(task="t", system_prompt="s", untrusted={"email": "x"}, trusted_context="",
                                output_model=SearchQueryOutput)
+
+
+TUNNEL = "spark2-llm.trycloudflare.com"
+
+
+def test_dgx_tunnel_host_needs_https_and_api_key() -> None:
+    ok = spark2(f"https://{TUNNEL}/v1", dgx_tunnel_host=TUNNEL, dgx_llm_api_key=SecretStr("k"))
+    assert ok.llm_endpoint_problem is None and ok.llm_configured
+    no_key = spark2(f"https://{TUNNEL}/v1", dgx_tunnel_host=TUNNEL)
+    assert no_key.llm_endpoint_problem is not None and not no_key.llm_configured
+    plain = spark2(f"http://{TUNNEL}/v1", dgx_tunnel_host=TUNNEL, dgx_llm_api_key=SecretStr("k"))
+    assert plain.llm_endpoint_problem is not None
+    other = spark2("https://api.openai.com/v1", dgx_tunnel_host=TUNNEL, dgx_llm_api_key=SecretStr("k"))
+    assert other.llm_endpoint_problem is not None
 
 
 def _recording(handler: httpx.MockTransport) -> tuple[httpx.AsyncClient, list[str]]:
