@@ -19,10 +19,11 @@ dependencies = [
   "icalendar>=7.3",
   "pypdf>=6.21",
   "python-docx>=1.2",
+  "redis>=8.1",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=9.2", "pytest-asyncio>=1.4", "respx>=0.23", "ruff>=0.14", "mypy>=1.18"]
+dev = ["fakeredis[lua]>=2.40", "pytest>=9.2", "pytest-asyncio>=1.4", "respx>=0.23", "ruff>=0.14", "mypy>=1.18"]
 ocr = ["pytesseract>=0.3.13", "pypdfium2>=4.30"]
 
 [tool.pytest.ini_options]

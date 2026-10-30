@@ -9,6 +9,8 @@ services:
     env_file: backend/.env
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-development}
+      RATE_LIMIT_REDIS_URL: ${RATE_LIMIT_REDIS_URL:-redis://redis:6379/0}
+    depends_on: [redis]
     ports:
       - "8000:8000"
     extra_hosts:
@@ -23,6 +25,11 @@ services:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
     stop_grace_period: 70s
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    restart: unless-stopped
 
   web:
     build:

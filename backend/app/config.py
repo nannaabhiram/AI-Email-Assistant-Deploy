@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     token_encryption_key: SecretStr = SecretStr("")  # Fernet key (urlsafe base64, 32 bytes)
     rate_limit_per_minute: int = 120
     sensitive_rate_limit_per_minute: int = 20
+    rate_limit_redis_url: str = ""  # e.g. redis://localhost:6379/0; shares limits across API instances
 
     # --- Google / Gmail ----------------------------------------------------
     google_client_id: str = ""

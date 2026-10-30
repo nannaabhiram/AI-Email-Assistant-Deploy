@@ -15,7 +15,7 @@
 | Malicious attachments | Executables, scripts and macro documents are blocked. Size limits apply, MIME types are allow-listed, and magic bytes are checked. Parsers run server-side with page and character limits. Nothing is executed and embedded links are never followed. Stored files sit in a private bucket with 120-second signed URLs. |
 | Malicious HTML | Rendered as plain text only. No remote images or scripts are loaded, and links are listed, never auto-opened. |
 | Secrets in logs | structlog redaction of tokens, JWTs, `Authorization` headers and any key named like body or content. Email bodies are never logged (`LOG_EMAIL_BODIES` refuses to start in production). |
-| Abuse | Per-user token-bucket rate limits, stricter on sensitive endpoints (search, drafting, OAuth, approvals). For multi-instance deployments, put a shared limiter at the proxy. |
+| Abuse | Per-user token-bucket rate limits, stricter on sensitive endpoints (search, drafting, OAuth, approvals). Set `RATE_LIMIT_REDIS_URL` to share limits across API instances; without it (or while Redis is down) each instance limits in memory. |
 | Browser hardening | Narrow CORS (explicit origins, no credentials), plus `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store`, and HSTS in production. |
 
 ## Security checklist (production)
@@ -31,7 +31,7 @@
 - [ ] SSH key-based auth only on the DGX (`PasswordAuthentication no`)
 - [ ] `LOG_EMAIL_BODIES=false`
 - [ ] Backups scheduled (see OPERATIONS.md); retention days chosen per user policy
-- [ ] Rate limiting at the reverse proxy when running more than one API instance
+- [ ] `RATE_LIMIT_REDIS_URL` set when running more than one API instance
 
 ## Data deletion
 

@@ -55,5 +55,5 @@ Bugs found and fixed during verification: a dialog focus effect that stole keybo
 4. **Gmail sender filters** (`gmail.settings.basic`) are recommended in the UI, not executed.
 5. **Push notifications.** There are no Gmail Pub/Sub webhooks; sync is scheduled polling via the History API (every `SYNC_INTERVAL_MINUTES`) plus manual sync. Briefings and reminders are in-app notifications only (no email or push).
 6. **Visual regression snapshots** (pixel baselines) are not set up. E2E screenshots are captured for manual review, and the a11y and interaction checks run in CI.
-7. **Rate limiting** is per API instance (in memory). Add a proxy-level limiter for multi-instance deployments.
+7. **Rate limiting** is shared through Redis when `RATE_LIMIT_REDIS_URL` is set (docker-compose sets it); otherwise, or while Redis is down, it falls back to per-instance memory.
 8. Restricted-scope Google verification (CASA) is required only for use beyond the OAuth test-user list.
