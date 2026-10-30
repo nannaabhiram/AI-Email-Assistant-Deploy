@@ -1,6 +1,7 @@
-# Render Blueprint for MailPilot AI: API + worker (Docker), Redis (Key Value), React static site.
-# Supabase (DB/Auth/Storage) stays hosted separately. Values marked sync:false are entered in the
-# Render dashboard on first Blueprint apply; the worker copies them from the API service.
+# Render Blueprint for MailPilot AI (free plan only): one Docker web service running the API and the
+# job worker together, plus the React static site. Supabase (DB/Auth/Storage) stays hosted separately.
+# Values marked sync:false are entered in the Render dashboard on first Blueprint apply.
+# Free instances sleep after 15 idle minutes; the worker (Gmail sync, jobs) pauses with it.
 services:
   - type: web
     name: mailpilot-api
@@ -9,6 +10,7 @@ services:
     plan: free
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
+    dockerCommand: sh -c "python -m app.jobs.worker & exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'"
     healthCheckPath: /health/ready
     buildFilter:
       paths: ["backend/**"]
@@ -23,8 +25,6 @@ services:
         value: "0"
       - key: LLM_FALLBACK_MODE
         value: rules
-      - key: RATE_LIMIT_REDIS_URL
-        fromService: { type: keyvalue, name: mailpilot-redis, property: connectionString }
       - key: API_BASE_URL
         sync: false
       - key: FRONTEND_URL
@@ -45,51 +45,6 @@ services:
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
-
-  - type: worker
-    name: mailpilot-worker
-    runtime: docker
-    region: singapore
-    plan: starter
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
-    dockerCommand: python -m app.jobs.worker
-    buildFilter:
-      paths: ["backend/**"]
-    envVars:
-      - key: ENVIRONMENT
-        value: production
-      - key: LOG_EMAIL_BODIES
-        value: "false"
-      - key: DATABASE_STATEMENT_CACHE_SIZE
-        value: "0"
-      - key: LLM_FALLBACK_MODE
-        value: rules
-      - key: API_BASE_URL
-        fromService: { type: web, name: mailpilot-api, envVarKey: API_BASE_URL }
-      - key: FRONTEND_URL
-        fromService: { type: web, name: mailpilot-api, envVarKey: FRONTEND_URL }
-      - key: GOOGLE_REDIRECT_URI
-        fromService: { type: web, name: mailpilot-api, envVarKey: GOOGLE_REDIRECT_URI }
-      - key: SUPABASE_URL
-        fromService: { type: web, name: mailpilot-api, envVarKey: SUPABASE_URL }
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        fromService: { type: web, name: mailpilot-api, envVarKey: SUPABASE_SERVICE_ROLE_KEY }
-      - key: DATABASE_URL
-        fromService: { type: web, name: mailpilot-api, envVarKey: DATABASE_URL }
-      - key: TOKEN_ENCRYPTION_KEY
-        fromService: { type: web, name: mailpilot-api, envVarKey: TOKEN_ENCRYPTION_KEY }
-      - key: GOOGLE_CLIENT_ID
-        fromService: { type: web, name: mailpilot-api, envVarKey: GOOGLE_CLIENT_ID }
-      - key: GOOGLE_CLIENT_SECRET
-        fromService: { type: web, name: mailpilot-api, envVarKey: GOOGLE_CLIENT_SECRET }
-
-  - type: keyvalue
-    name: mailpilot-redis
-    region: singapore
-    plan: free
-    maxmemoryPolicy: noeviction
-    ipAllowList: []
 
   - type: web
     name: mailpilot-web
