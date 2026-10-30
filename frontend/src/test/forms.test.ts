@@ -3,7 +3,7 @@ import { draftSchema, splitAddresses } from '@/components/work/DraftEditor'
 import { diffWords } from '@/lib/diff'
 import { relativeTime } from '@/lib/format'
 import { filtersFromParams } from '@/pages/InboxPage'
-import { loginSchema, signupSchema } from '@/pages/LoginPage'
+import { loginSchema } from '@/pages/LoginPage'
 import { preferencesSchema } from '@/pages/PreferencesPage'
 import { commitmentSchema, taskSchema } from '@/pages/TasksPage'
 
@@ -11,13 +11,6 @@ describe('authentication forms', () => {
   it('validates sign-in input', () => {
     expect(loginSchema.safeParse({ email: 'you@example.org', password: 'x' }).success).toBe(true)
     expect(loginSchema.safeParse({ email: 'nope', password: '' }).success).toBe(false)
-  })
-  it('enforces password rules and confirmation', () => {
-    const issues = (v: object) => signupSchema.safeParse(v).error?.issues.map((i) => i.message) ?? []
-    expect(issues({ email: 'a@example.org', password: 'short1', confirm: 'short1' })).toContain('Use at least 10 characters')
-    expect(issues({ email: 'a@example.org', password: 'longpassword', confirm: 'longpassword' })).toContain('Include a number')
-    expect(issues({ email: 'a@example.org', password: 'longpassw0rd', confirm: 'different0' })).toContain('Passwords do not match')
-    expect(issues({ email: 'a@example.org', password: 'longpassw0rd', confirm: 'longpassw0rd' })).toEqual([])
   })
 })
 

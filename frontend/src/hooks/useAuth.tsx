@@ -14,7 +14,7 @@ interface AuthContextValue {
   sendMagicLink: (email: string) => Promise<void>
   sendPasswordReset: (email: string) => Promise<void>
   updatePassword: (password: string) => Promise<void>
-  signInWithGoogle: () => Promise<void>
+  signInWithGoogle: (next?: string) => Promise<void>
   signOut: () => Promise<void>
 }
 
@@ -97,8 +97,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw new Error(authErrorMessage(error))
       setRecovering(false)
     },
-    async signInWithGoogle() {
-      const { error } = await client().auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${window.location.origin}/dashboard` } })
+    async signInWithGoogle(next = '/dashboard') {
+      const { error } = await client().auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${window.location.origin}${next}`, queryParams: { prompt: 'select_account' } },
+      })
       if (error) throw new Error(authErrorMessage(error))
     },
     async signOut() {
