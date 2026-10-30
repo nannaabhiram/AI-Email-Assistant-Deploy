@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 from urllib.parse import urlparse
 
 from pydantic import Field, SecretStr, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 # Always backend/.env, whatever the process's working directory is.
 ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     log_email_bodies: bool = False  # never enable in production
     api_base_url: str = "http://localhost:8000"
     frontend_url: str = "http://localhost:5173"
-    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173", "http://127.0.0.1:5173"])
+    cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["http://localhost:5173", "http://127.0.0.1:5173"])
 
     # --- Supabase ----------------------------------------------------------
     supabase_url: str = "http://127.0.0.1:55321"
