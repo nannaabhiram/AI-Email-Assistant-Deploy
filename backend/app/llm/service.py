@@ -78,10 +78,31 @@ class LLMService:
         self.provider = provider
         self._semaphore = asyncio.Semaphore(self.settings.llm_max_concurrency)
         self._record_metrics = record_metrics
+        self._consecutive_failures = 0
+        self._open_until = 0.0
 
     @property
     def available(self) -> bool:
         return self.provider is not None
+
+    @property
+    def circuit_open(self) -> bool:
+        return time.monotonic() < self._open_until
+
+    @property
+    def circuit_retry_seconds(self) -> int:
+        return max(0, int(self._open_until - time.monotonic()) + 1)
+
+    def _record_outcome(self, reachable: bool) -> None:
+        if reachable:
+            self._consecutive_failures = 0
+            self._open_until = 0.0
+            return
+        self._consecutive_failures += 1
+        if self._consecutive_failures >= self.settings.llm_breaker_threshold:
+            self._open_until = time.monotonic() + self.settings.llm_breaker_cooldown_seconds
+            log.warning("llm_circuit_opened", failures=self._consecutive_failures,
+                        cooldown_seconds=self.settings.llm_breaker_cooldown_seconds)
 
     @property
     def model_name(self) -> str:
@@ -106,6 +127,8 @@ class LLMService:
     ) -> tuple[T, LLMMeta]:
         if self.provider is None:
             raise LLMNotConfiguredError("Remote inference is not configured")
+        if self.circuit_open:
+            raise LLMUnavailableError(f"Remote inference circuit open; retry in {self.circuit_retry_seconds}s")
         budget = self.settings.llm_max_input_chars
         per_block = max(1000, budget // max(1, len(untrusted)))
         blocks = [wrap_untrusted(label, truncate(content, per_block)) for label, content in untrusted.items()]
@@ -133,6 +156,7 @@ class LLMService:
                             messages, json_schema=schema, schema_name=task, max_tokens=max_tokens,
                             temperature=self.settings.llm_temperature, request_id=request_id,
                         )
+                        self._record_outcome(reachable=True)
                         output_chars = len(result.text)
                         try:
                             parsed = output_model.model_validate(extract_json_object(result.text))
@@ -150,7 +174,8 @@ class LLMService:
                         return parsed, LLMMeta(request_id, result.model, latency, attempts)
                     except (LLMUnavailableError, LLMTimeoutError) as exc:
                         last_exc = exc
-                        if attempts > self.settings.llm_max_retries:
+                        self._record_outcome(reachable=False)
+                        if attempts > self.settings.llm_max_retries or self.circuit_open:
                             raise
                         await asyncio.sleep(min(8.0, 0.5 * 2**attempts + random.uniform(0, 0.5)))
                 raise last_exc or LLMInvalidOutputError("Exhausted retries")

@@ -49,6 +49,8 @@ from app.gmail.client import (
     GmailAuthError,
     GmailClient,
     GmailError,
+    GmailNotFoundError,
+    GmailRateLimitError,
 )
 from app.jobs.queue import enqueue
 from app.logging import get_logger
@@ -309,6 +311,15 @@ async def retry_failed(user_id: UUID, approval_id: UUID) -> ActionApproval:
 # ---------------------------------------------------------------------------------
 # Execution
 # ---------------------------------------------------------------------------------
+def is_transient(exc: Exception) -> bool:
+    """Failures worth an automatic retry: quota, Gmail 5xx and network errors (not auth or bad requests)."""
+    if isinstance(exc, GmailRateLimitError):
+        return True
+    if isinstance(exc, (GmailAuthError, GmailNotFoundError)) or not isinstance(exc, GmailError):
+        return False
+    return exc.status is None or exc.status >= 500
+
+
 def build_mime(params: dict[str, Any], message_id_header: str) -> str:
     mime = MimeMessage()
     mime["From"] = params["account_email"]
@@ -474,7 +485,7 @@ async def execute_approval(approval_id: UUID, gmail: GmailClient | None = None) 
         result = await _perform(gmail, approval, execution, retrying)
         error = None
     except Exception as exc:  # recorded and surfaced; job layer decides about retries
-        result, error = {}, f"{type(exc).__name__}: {exc}"[:1000]
+        result, error = {"retryable": is_transient(exc)}, f"{type(exc).__name__}: {exc}"[:1000]
     finally:
         if owns and gmail is not None:
             await gmail.aclose()
@@ -498,7 +509,7 @@ async def execute_approval(approval_id: UUID, gmail: GmailClient | None = None) 
                                   "partial_failures": len(result.get("failed", []))})
         else:
             row.state = ApprovalState.FAILED
-            exe.state, exe.error, exe.finished_at = "failed", error, datetime.now(UTC)
+            exe.state, exe.error, exe.result, exe.finished_at = "failed", error, result, datetime.now(UTC)
             record_audit(s, user_id=row.user_id, actor="worker", event="action.failed",
                          entity_type="action_approval", entity_id=row.id,
                          details={"action": row.action_type.value, "error": error[:300]})

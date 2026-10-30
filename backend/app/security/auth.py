@@ -7,6 +7,7 @@ legacy projects, the shared HS256 secret. Request fields are never trusted for i
 
 from __future__ import annotations
 
+import asyncio
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -37,14 +38,25 @@ class CurrentUser:
 
 
 class JWKSCache:
-    def __init__(self, ttl_seconds: int = 600) -> None:
+    """JWKS keys cached for ``ttl``. Unknown ``kid`` values (key rotation) trigger at most one fetch per
+    ``min_refresh_interval``, so forged tokens with random kids cannot turn every request into a JWKS fetch."""
+
+    def __init__(self, ttl_seconds: int = 600, min_refresh_interval: float = 30.0) -> None:
         self._ttl = ttl_seconds
+        self._min_refresh_interval = min_refresh_interval
         self._keys: dict[str, Any] = {}
         self._fetched_at = 0.0
+        self._attempted_at = float("-inf")
+        self._lock = asyncio.Lock()
 
     async def get_key(self, settings: Settings, kid: str) -> Any:
         if kid not in self._keys or time.monotonic() - self._fetched_at > self._ttl:
-            await self._refresh(settings)
+            async with self._lock:
+                stale = time.monotonic() - self._fetched_at > self._ttl
+                throttled = time.monotonic() - self._attempted_at < self._min_refresh_interval
+                if (stale or kid not in self._keys) and not throttled:
+                    self._attempted_at = time.monotonic()
+                    await self._refresh(settings)
         key = self._keys.get(kid)
         if key is None:
             raise UnauthorizedError("Unknown token signing key", code="invalid_token")
@@ -86,7 +98,8 @@ async def verify_access_token(token: str, settings: Settings | None = None) -> C
             if not secret:
                 raise UnauthorizedError("HS256 tokens are not accepted by this server", code="invalid_token")
             claims = jwt.decode(
-                token, secret, algorithms=["HS256"], audience=settings.supabase_jwt_audience, options=options
+                token, secret, algorithms=["HS256"], audience=settings.supabase_jwt_audience, issuer=issuer,
+                options=options,
             )
         elif alg in _ASYMMETRIC_ALGS:
             key = await _jwks_cache.get_key(settings, header.get("kid", ""))

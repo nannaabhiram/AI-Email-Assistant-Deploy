@@ -73,6 +73,9 @@ class Settings(BaseSettings):
     llm_max_input_chars: int = 24000
     llm_max_output_tokens: int = 1200
     llm_temperature: float = 0.1
+    # Circuit breaker: after N consecutive unavailable/timeout failures, skip the DGX for the cooldown.
+    llm_breaker_threshold: int = 3
+    llm_breaker_cooldown_seconds: int = 120
     # When inference is unavailable: 'rules' stores a clearly labelled rule-based result
     # and requeues LLM analysis; 'queue' only requeues. Never falls back to a cloud model.
     llm_fallback_mode: Literal["rules", "queue"] = "rules"

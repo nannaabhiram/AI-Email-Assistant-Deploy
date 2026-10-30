@@ -1,3 +1,4 @@
+import os
 import time
 import uuid
 
@@ -9,7 +10,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 
 from app.config import get_settings
 from app.errors import UnauthorizedError
-from app.gmail.client import GmailAuthError, GmailClient, GmailHistoryExpiredError, GmailRateLimitError
+from app.gmail.client import GmailAuthError, GmailClient, GmailError, GmailHistoryExpiredError, GmailRateLimitError
 from app.security import auth as auth_module
 from app.security.auth import verify_access_token
 from tests.conftest import make_token
@@ -144,3 +145,61 @@ async def test_es256_token_verified_against_jwks() -> None:
                           "iss": "https://evil.example/auth/v1"}, key, algorithm="ES256", headers={"kid": "test-kid"})
     with pytest.raises(UnauthorizedError):
         await verify_access_token(bad_iss)
+
+
+@respx.mock
+async def test_send_is_not_retried_after_ambiguous_failures() -> None:
+    route = respx.post(f"{BASE}/messages/send").mock(side_effect=[httpx.Response(500), httpx.ReadTimeout("slow")])
+    gmail, _ = _client()
+    with pytest.raises(GmailError) as exc:
+        await gmail.send_raw("cmF3", None)
+    assert exc.value.status == 500 and route.call_count == 1
+    with pytest.raises(GmailError):
+        await gmail.send_raw("cmF3", None)
+    assert route.call_count == 2
+
+
+@respx.mock
+async def test_send_retries_when_gmail_cannot_have_sent() -> None:
+    route = respx.post(f"{BASE}/messages/send").mock(side_effect=[
+        httpx.ConnectError("refused"),
+        httpx.Response(429, json={"error": {"errors": [{"reason": "rateLimitExceeded"}]}}),
+        httpx.Response(200, json={"id": "m1", "threadId": "t1"}),
+    ])
+    gmail, _ = _client()
+    assert (await gmail.send_raw("cmF3", None))["id"] == "m1"
+    assert route.call_count == 3
+
+
+def test_transient_classification() -> None:
+    from app.actions.engine import is_transient
+
+    assert is_transient(GmailRateLimitError("quota", 429))
+    assert is_transient(GmailError("server", 503)) and is_transient(GmailError("network"))
+    assert not is_transient(GmailAuthError("revoked", 401))
+    assert not is_transient(GmailError("bad request", 400)) and not is_transient(ValueError("x"))
+
+
+@respx.mock
+async def test_unknown_kid_refresh_is_throttled() -> None:
+    settings = get_settings()
+    route = respx.get(settings.supabase_url + "/auth/v1/.well-known/jwks.json").mock(
+        return_value=httpx.Response(200, json={"keys": []}))
+    auth_module._jwks_cache = auth_module.JWKSCache()
+    key = ec.generate_private_key(ec.SECP256R1())
+    now = int(time.time())
+    for i in range(5):
+        token = jwt.encode({"sub": str(uuid.uuid4()), "role": "authenticated", "aud": "authenticated", "exp": now + 60},
+                           key, algorithm="ES256", headers={"kid": f"random-{i}"})
+        with pytest.raises(UnauthorizedError):
+            await verify_access_token(token)
+    assert route.call_count == 1
+    auth_module._jwks_cache = auth_module.JWKSCache()
+
+
+async def test_hs256_token_with_wrong_issuer_rejected() -> None:
+    token = make_token(uuid.uuid4())
+    claims = jwt.decode(token, options={"verify_signature": False})
+    claims["iss"] = "https://evil.example/auth/v1"
+    with pytest.raises(UnauthorizedError):
+        await verify_access_token(jwt.encode(claims, os.environ["SUPABASE_JWT_SECRET"], algorithm="HS256"))

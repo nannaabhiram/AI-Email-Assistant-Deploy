@@ -108,7 +108,8 @@ def make_token(user_id: uuid.UUID, *, expires_in: int = 600, role: str = "authen
                app_metadata: dict[str, Any] | None = None, user_metadata: dict[str, Any] | None = None) -> str:
     now = int(time.time())
     payload: dict[str, Any] = {"sub": str(user_id), "role": role, "aud": aud, "iat": now, "exp": now + expires_in,
-                               "email": f"{user_id.hex[:8]}@{TEST_DOMAIN}"}
+                               "email": f"{user_id.hex[:8]}@{TEST_DOMAIN}",
+                               "iss": get_settings().supabase_url.rstrip("/") + "/auth/v1"}
     if app_metadata is not None:
         payload["app_metadata"] = app_metadata
     if user_metadata is not None:

@@ -84,3 +84,24 @@ def test_truncate_and_extract() -> None:
     assert extract_json_object('prefix {"a": 1} suffix') == {"a": 1}
     with pytest.raises(LLMInvalidOutputError):
         extract_json_object("no json")
+
+
+async def test_circuit_opens_after_consecutive_failures_and_skips_provider() -> None:
+    provider = FakeProvider(responses=[LLMUnavailableError("down")] * 3)
+    service = svc(provider)
+    with pytest.raises(LLMUnavailableError):
+        await _gen(service)
+    assert service.circuit_open and service.circuit_retry_seconds > 0
+    with pytest.raises(LLMUnavailableError, match="circuit open"):
+        await _gen(service)
+    assert len(provider.calls) == 3
+
+
+async def test_circuit_closes_after_cooldown_on_success() -> None:
+    s = get_settings().model_copy(update={"llm_max_retries": 0, "dgx_llm_model": "fake-model",
+                                          "llm_breaker_threshold": 1, "llm_breaker_cooldown_seconds": 0})
+    service = LLMService(FakeProvider(responses=[LLMUnavailableError("down"), analysis_json()]), s, record_metrics=False)
+    with pytest.raises(LLMUnavailableError):
+        await _gen(service)
+    out, _ = await _gen(service)
+    assert out.summary == "Synthetic summary." and not service.circuit_open

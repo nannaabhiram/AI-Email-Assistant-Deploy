@@ -96,7 +96,10 @@ class GmailClient:
     async def __aexit__(self, *_: object) -> None:
         await self.aclose()
 
-    async def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
+    async def _request(self, method: str, path: str, *, idempotent: bool = True, **kwargs: Any) -> dict[str, Any]:
+        """``idempotent=False`` (sends) retries only failures where Gmail cannot have acted on the request:
+        connection errors, 429 and quota 403s. Ambiguous failures (read timeouts, 5xx) are raised so the caller
+        can check for the Message-ID before trying again, instead of risking a duplicate send."""
         url = f"{self._base}/users/me/{path.lstrip('/')}"
         refreshed = False
         attempt = 0
@@ -106,6 +109,8 @@ class GmailClient:
             try:
                 resp = await self._http.request(method, url, headers=headers, **kwargs)
             except httpx.TransportError as exc:
+                if not idempotent and not isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout)):
+                    raise GmailError(f"Gmail transport error after request was sent: {type(exc).__name__}") from exc
                 if attempt >= self._max_retries:
                     raise GmailError(f"Gmail transport error: {type(exc).__name__}") from exc
                 await self._backoff(attempt, None)
@@ -126,6 +131,8 @@ class GmailClient:
             retryable = resp.status_code in _RETRYABLE_STATUS or (
                 resp.status_code == 403 and reason in _RATE_LIMIT_REASONS
             )
+            if not idempotent and (resp.status_code >= 500 or reason == "backendError"):
+                raise GmailError(f"Gmail API error {resp.status_code}", resp.status_code, reason)
             if retryable and attempt < self._max_retries:
                 await self._backoff(attempt, resp.headers.get("retry-after"))
                 attempt += 1
@@ -203,7 +210,7 @@ class GmailClient:
         body: dict[str, Any] = {"raw": raw_b64url}
         if thread_id:
             body["threadId"] = thread_id
-        return await self._request("POST", "messages/send", json=body)
+        return await self._request("POST", "messages/send", idempotent=False, json=body)
 
     async def find_by_rfc822_id(self, rfc822_id: str) -> str | None:
         """Return the Gmail ID of a message with this Message-ID header, if it exists."""

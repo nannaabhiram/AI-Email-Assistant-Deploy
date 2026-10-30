@@ -18,8 +18,11 @@ from app.analysis.summaries import summarize_thread
 from app.config import get_settings
 from app.db.models import (
     AccountStatus,
+    ActionExecution,
     AnalysisStatus,
+    ApprovalState,
     ConnectedAccount,
+    EmailAnalysis,
     EmailAttachment,
     EmailMessage,
     Notification,
@@ -32,6 +35,7 @@ from app.db.session import system_session
 from app.gmail.client import GmailAuthError, GmailRateLimitError
 from app.gmail.sync import SyncSkipped, sync_account
 from app.jobs.queue import enqueue
+from app.llm.service import get_llm_service
 from app.logging import get_logger
 from app.services.timezones import briefing_due_date
 
@@ -76,6 +80,14 @@ async def handle_gmail_sync(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 async def handle_analyze(payload: dict[str, Any]) -> dict[str, Any]:
+    llm = get_llm_service()
+    if llm.circuit_open:
+        # DGX known down: keep the stored rule-based result instead of recomputing it on every retry.
+        async with system_session() as s:
+            analysed = (await s.execute(select(EmailAnalysis.id).where(
+                EmailAnalysis.message_id == UUID(payload["message_id"])))).first()
+        if analysed:
+            raise RetryLater(max(300, llm.circuit_retry_seconds), "Remote inference circuit open; rule-based result kept")
     try:
         outcome = await analyze_message(UUID(payload["message_id"]))
     except LookupError as exc:
@@ -109,6 +121,13 @@ async def handle_execute_action(payload: dict[str, Any]) -> dict[str, Any]:
     from app.actions.engine import execute_approval
 
     approval = await execute_approval(UUID(payload["approval_id"]))
+    if approval is not None and approval.state == ApprovalState.FAILED:
+        async with system_session() as s:
+            execution = (await s.execute(select(ActionExecution).where(
+                ActionExecution.approval_id == approval.id))).scalar_one_or_none()
+        if execution is not None and (execution.result or {}).get("retryable"):
+            # Retries re-check Gmail for the deterministic Message-ID first, so a send is never duplicated.
+            raise RetryAfter(60, f"Transient Gmail failure: {execution.error}")
     return {"state": approval.state.value if approval else "missing"}
 
 
