@@ -10,7 +10,7 @@ services:
     plan: free
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    dockerCommand: sh -c "python -m app.jobs.worker & exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'"
+    dockerCommand: sh scripts/render-start.sh
     healthCheckPath: /health/ready
     buildFilter:
       paths: ["backend/**"]
