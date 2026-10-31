@@ -32,7 +32,7 @@ export function Toast({ toast, onDismiss }: { toast: ToastMessage; onDismiss: ()
   return (
     <div
       role={toast.tone === 'error' ? 'alert' : 'status'}
-      className={cn('pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-lg border bg-surface-raised p-3 shadow-pop', TONES[toast.tone])}
+      className={cn('mp-anim-toast pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-lg border bg-surface-raised p-3 shadow-pop', TONES[toast.tone])}
     >
       <Icon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
       <div className="min-w-0 flex-1">
@@ -69,7 +69,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <div aria-live="polite" className="pointer-events-none fixed right-4 bottom-4 z-[60] flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2">
+      <div aria-live="polite" className="mp-toast-region pointer-events-none fixed right-4 z-[60] flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2">
         {toasts.map((t) => <Toast key={t.id} toast={t} onDismiss={() => dismiss(t.id)} />)}
       </div>
     </ToastContext.Provider>

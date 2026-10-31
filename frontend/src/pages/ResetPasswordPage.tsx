@@ -43,8 +43,8 @@ export default function ResetPasswordPage() {
   const { session, loading, updatePassword } = useAuth()
   const navigate = useNavigate()
   return (
-    <main className="flex min-h-screen items-center justify-center bg-bg px-4 py-10">
-      <div className="w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-card">
+    <main className="flex min-h-screen min-h-dvh items-center justify-center px-4 py-10">
+      <div className="w-full max-w-md mp-anim-pop rounded-xl border border-border bg-surface p-6 shadow-card sm:p-8">
         <h1 className="mb-1 text-xl font-semibold text-fg">Choose a new password</h1>
         {loading ? (
           <LoadingSkeleton lines={3} label="Checking your reset link" />

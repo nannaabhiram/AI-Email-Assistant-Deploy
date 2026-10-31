@@ -1,14 +1,56 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { KeyRound, Mail, ShieldCheck } from 'lucide-react'
-import { useState } from 'react'
+import { KeyRound, Mail, Play, ShieldCheck } from 'lucide-react'
+import { useCallback, useRef, useState, type CSSProperties, type PointerEvent } from 'react'
 import { useForm } from 'react-hook-form'
 import { Navigate, useLocation, useNavigate } from 'react-router'
 import { z } from 'zod'
+import { CinematicIntro } from '@/components/motion/CinematicIntro'
+import { KineticText } from '@/components/motion/KineticText'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { useAuth } from '@/hooks/useAuth'
 import { errorMessage } from '@/lib/api'
+
+const INTRO_KEY = 'mailpilot-intro-seen'
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+}
+
+function shouldAutoplayIntro(): boolean {
+  if (import.meta.env.MODE === 'test' || typeof navigator === 'undefined' || navigator.webdriver || prefersReducedMotion()) return false
+  try {
+    return !sessionStorage.getItem(INTRO_KEY)
+  } catch {
+    return false
+  }
+}
+
+const HERO_CARDS = [
+  { title: 'Design review moved to 3 PM', from: 'Product team', tag: 'Urgent', c: '#ff5a6e', top: '4%', z: '70px' },
+  { title: 'Invoice #2291 due Friday', from: 'Finance', tag: 'Deadline', c: '#f5a623', top: '36%', z: '20px' },
+  { title: 'Lunch next week?', from: 'Arjun', tag: 'Draft ready', c: '#22b866', top: '68%', z: '-30px' },
+]
+
+function HeroStage() {
+  return (
+    <div className="mp-hero-stage" aria-hidden>
+      <div className="mp-hero-stack">
+        {HERO_CARDS.map((card, k) => (
+          <div key={card.title} className="mp-hero-card mp-glass" style={{ top: card.top, '--z': card.z, '--c': card.c, '--k': k } as CSSProperties}>
+            <span className="mp-hero-card__dot" />
+            <span className="min-w-0">
+              <span className="block truncate font-semibold text-fg">{card.title}</span>
+              <span className="block truncate text-xs text-fg-muted">{card.from}</span>
+            </span>
+            <span className="mp-hero-card__tag">{card.tag}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export const loginSchema = z.object({
   email: z.email('Enter a valid email address'),
@@ -86,6 +128,27 @@ export default function LoginPage() {
   const [redirecting, setRedirecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showEmail, setShowEmail] = useState(false)
+  const [intro, setIntro] = useState(shouldAutoplayIntro)
+  const [reducedMotion] = useState(prefersReducedMotion)
+  const stage = useRef<HTMLDivElement>(null)
+  const frame = useRef(0)
+  const endIntro = useCallback(() => {
+    try {
+      sessionStorage.setItem(INTRO_KEY, '1')
+    } catch {
+      // Storage blocked: the intro simply plays again next visit.
+    }
+    setIntro(false)
+  }, [])
+  const parallax = (e: PointerEvent<HTMLElement>) => {
+    if (e.pointerType !== 'mouse') return
+    const { clientX, clientY } = e
+    cancelAnimationFrame(frame.current)
+    frame.current = requestAnimationFrame(() => {
+      stage.current?.style.setProperty('--px', (clientX / window.innerWidth - 0.5).toFixed(3))
+      stage.current?.style.setProperty('--py', (clientY / window.innerHeight - 0.5).toFixed(3))
+    })
+  }
   if (session) return <Navigate to={recovering ? '/reset-password' : from} replace />
   const google = async () => {
     setError(null)
@@ -98,32 +161,50 @@ export default function LoginPage() {
     }
   }
   return (
-    <main className="flex min-h-screen items-center justify-center bg-bg px-4 py-10">
-      <div className="w-full max-w-md">
-        <div className="mb-6 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary font-bold text-primary-fg" aria-hidden>MP</span>
-            <h1 className="text-xl font-semibold text-fg">MailPilot AI</h1>
+    <main className="relative flex min-h-screen min-h-dvh items-center justify-center px-4 pt-[calc(2rem+env(safe-area-inset-top))] pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-8" onPointerMove={parallax}>
+      {intro && <CinematicIntro onDone={endIntro} />}
+      <div className="mx-auto grid w-full max-w-6xl items-center gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:gap-16">
+        <section ref={stage} className="text-center lg:text-left">
+          <div className="mb-6 flex items-center justify-center gap-2.5 lg:justify-start">
+            <span className="mp-logo flex h-10 w-10 items-center justify-center rounded-[0.8rem] font-bold" aria-hidden>MP</span>
+            <span className="text-xl font-semibold tracking-tight text-fg">MailPilot AI</span>
           </div>
-          <ThemeToggle />
-        </div>
-        <div className="space-y-4 rounded-xl border border-border bg-surface p-6 shadow-card">
-          <div>
-            <h2 className="text-lg font-semibold text-fg">Sign in</h2>
-            <p className="text-sm text-fg-muted">Use your Google account to continue.</p>
-          </div>
-          <Button variant="secondary" className="w-full" loading={redirecting} onClick={google} leftIcon={<GoogleIcon />}>Continue with Google</Button>
-          {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-          {showEmail ? (
-            <SignInForm onSubmit={async (v) => { await signIn(v.email, v.password); navigate(from, { replace: true }) }} onMagicLink={sendMagicLink} onForgotPassword={sendPasswordReset} />
-          ) : (
-            <button type="button" className="w-full text-center text-xs text-fg-muted underline-offset-2 hover:underline" onClick={() => setShowEmail(true)}>Sign in with email and password instead</button>
+          <h1 className="text-[clamp(2.4rem,7vw,4.75rem)] leading-[1.02] font-extrabold tracking-[-0.045em] text-fg">
+            <KineticText text="Your inbox," delay={0.15} stagger={0.04} variant="rise" />
+            <span className="mp-gradient-text mp-hero-accent block">piloted.</span>
+          </h1>
+          <p className="mx-auto mt-4 max-w-md text-base text-fg-muted sm:text-lg lg:mx-0">
+            AI that sorts what matters, drafts your replies and never acts without your approval.
+          </p>
+          {!reducedMotion && (
+            <button type="button" onClick={() => setIntro(true)} className="mp-glass mt-5 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-fg transition-transform duration-300 ease-[var(--ease-spring)] active:scale-95">
+              <Play className="h-4 w-4 fill-current text-primary" aria-hidden /> Watch the 15-second intro
+            </button>
           )}
+          <div className="mt-6 hidden md:block"><HeroStage /></div>
+        </section>
+        <div className="mx-auto w-full max-w-md">
+          <div className="mp-login-card space-y-5 rounded-xl border border-border bg-surface p-6 shadow-card sm:p-8">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight text-fg">Sign in</h2>
+                <p className="text-sm text-fg-muted">Use your Google account to continue.</p>
+              </div>
+              <ThemeToggle />
+            </div>
+            <Button variant="secondary" size="lg" className="w-full rounded-xl" loading={redirecting} onClick={google} leftIcon={<GoogleIcon />}>Continue with Google</Button>
+            {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+            {showEmail ? (
+              <SignInForm onSubmit={async (v) => { await signIn(v.email, v.password); navigate(from, { replace: true }) }} onMagicLink={sendMagicLink} onForgotPassword={sendPasswordReset} />
+            ) : (
+              <button type="button" className="w-full text-center text-xs text-fg-muted underline-offset-2 hover:underline" onClick={() => setShowEmail(true)}>Sign in with email and password instead</button>
+            )}
+          </div>
+          <p className="mt-4 flex items-start gap-2 px-1 text-xs text-fg-muted">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />
+            MailPilot never sends, archives or labels email without your explicit approval. AI analysis runs on your own DGX Spark server.
+          </p>
         </div>
-        <p className="mt-4 flex items-start gap-2 text-xs text-fg-muted">
-          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />
-          MailPilot never sends, archives or labels email without your explicit approval. AI analysis runs on your own DGX Spark server.
-        </p>
       </div>
     </main>
   )

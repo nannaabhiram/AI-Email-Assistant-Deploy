@@ -72,7 +72,7 @@ export function DropdownMenu({ trigger, items, align = 'end', label }: DropdownM
           id={id}
           role="menu"
           aria-label={label}
-          className={cn('absolute z-40 mt-1 min-w-44 rounded-md border border-border bg-surface-raised p-1 shadow-pop', align === 'end' ? 'right-0' : 'left-0')}
+          className={cn('mp-anim-pop absolute z-40 mt-2 min-w-48 rounded-lg border border-border bg-surface-raised p-1.5 shadow-pop', align === 'end' ? 'right-0 origin-top-right' : 'left-0 origin-top-left')}
           onKeyDown={(e) => {
             if (e.key === 'ArrowDown') { e.preventDefault(); move(1) }
             if (e.key === 'ArrowUp') { e.preventDefault(); move(-1) }

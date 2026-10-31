@@ -58,8 +58,8 @@ export function NavigationSidebar({ badges = {}, onNavigate, className }: Naviga
   return (
     <nav aria-label="Main" className={cn('flex h-full flex-col gap-5 overflow-y-auto px-3 py-4', className)}>
       <div className="flex items-center gap-2 px-2">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-fg" aria-hidden>MP</span>
-        <span className="text-base font-semibold text-fg">MailPilot AI</span>
+        <span className="mp-logo flex h-9 w-9 items-center justify-center rounded-[0.7rem] text-sm font-bold" aria-hidden>MP</span>
+        <span className="text-base font-semibold tracking-tight text-fg">MailPilot AI</span>
       </div>
       {NAV_SECTIONS.map((section) => (
         <div key={section.label}>
@@ -73,8 +73,8 @@ export function NavigationSidebar({ badges = {}, onNavigate, className }: Naviga
                     to={item.to}
                     onClick={onNavigate}
                     className={({ isActive }) => cn(
-                      'flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors',
-                      isActive ? 'bg-primary-soft font-medium text-primary' : 'text-fg-muted hover:bg-surface-muted hover:text-fg',
+                      'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-[background-color,color,transform] duration-300 ease-[var(--ease-ios)] active:scale-[0.97]',
+                      isActive ? 'bg-primary-soft font-semibold text-primary shadow-[inset_0_1px_0_rgb(255_255_255/0.35)]' : 'text-fg-muted hover:bg-surface-muted hover:text-fg',
                     )}
                   >
                     {item.icon}

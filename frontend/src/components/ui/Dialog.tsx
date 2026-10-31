@@ -67,7 +67,7 @@ export function Dialog({ open, onClose, title, description, children, footer, si
   if (!open) return null
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
-      <div className="absolute inset-0 bg-overlay" aria-hidden onClick={dismissible ? onClose : undefined} />
+      <div className="mp-anim-fade absolute inset-0 bg-overlay backdrop-blur-sm" aria-hidden onClick={dismissible ? onClose : undefined} />
       <div
         ref={panel}
         role={role}
@@ -76,17 +76,18 @@ export function Dialog({ open, onClose, title, description, children, footer, si
         aria-describedby={description ? descId : undefined}
         tabIndex={-1}
         className={cn(
-          'relative flex max-h-[92vh] w-full flex-col rounded-t-xl border border-border bg-surface-raised shadow-pop sm:rounded-xl',
+          'mp-anim-dialog relative flex max-h-[92dvh] w-full flex-col rounded-t-[1.75rem] border border-border bg-surface-raised pb-[env(safe-area-inset-bottom)] shadow-pop sm:rounded-xl sm:pb-0',
           { sm: 'sm:max-w-md', md: 'sm:max-w-lg', lg: 'sm:max-w-3xl' }[size],
         )}
       >
+        <div className="mp-grabber" aria-hidden />
         <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
           <div>
             <h2 id={titleId} className="text-base font-semibold text-fg">{title}</h2>
             {description && <p id={descId} className="mt-1 text-sm text-fg-muted">{description}</p>}
           </div>
           {dismissible && (
-            <button type="button" onClick={onClose} className="rounded p-1 text-fg-subtle hover:bg-surface-muted hover:text-fg" aria-label="Close dialog">
+            <button type="button" onClick={onClose} className="rounded-full bg-surface-muted p-1.5 text-fg-subtle transition-colors hover:text-fg" aria-label="Close dialog">
               <X className="h-4 w-4" aria-hidden />
             </button>
           )}

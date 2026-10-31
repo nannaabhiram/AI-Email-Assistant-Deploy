@@ -1,4 +1,6 @@
 @import 'tailwindcss';
+@import './styles/glass.css';
+@import './styles/intro.css';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -7,20 +9,20 @@
  * values, so light/dark themes stay consistent. Contrast pairs meet WCAG AA.
  */
 :root {
-  --mp-bg: #f7f8fa;
-  --mp-surface: #ffffff;
-  --mp-surface-muted: #f1f3f6;
-  --mp-surface-raised: #ffffff;
-  --mp-border: #dde1e7;
-  --mp-border-strong: #c3c9d2;
-  --mp-text: #151a21;
-  --mp-text-muted: #4f5966;
-  --mp-text-subtle: #6b7480;
-  --mp-primary: #2d4ec8;
-  --mp-primary-hover: #2541a8;
+  --mp-bg: #eef1f8;
+  --mp-surface: rgb(255 255 255 / 0.68);
+  --mp-surface-muted: rgb(116 128 160 / 0.11);
+  --mp-surface-raised: rgb(255 255 255 / 0.86);
+  --mp-border: rgb(60 72 100 / 0.12);
+  --mp-border-strong: rgb(60 72 100 / 0.22);
+  --mp-text: #10141b;
+  --mp-text-muted: #444e5c;
+  --mp-text-subtle: #5d6674;
+  --mp-primary: #0a63d8;
+  --mp-primary-hover: #0853b8;
   --mp-primary-fg: #ffffff;
-  --mp-primary-soft: #e8edfc;
-  --mp-focus: #2d4ec8;
+  --mp-primary-soft: rgb(10 99 216 / 0.12);
+  --mp-focus: #0a63d8;
   --mp-high: #b42318;
   --mp-high-soft: #fdecea;
   --mp-medium: #a15c07;
@@ -35,7 +37,7 @@
   --mp-danger-soft: #fdecea;
   --mp-info: #1f5fa6;
   --mp-info-soft: #e6f0fb;
-  --mp-overlay: rgb(15 20 28 / 0.45);
+  --mp-overlay: rgb(15 20 40 / 0.28);
   /* Chart series (validated: dataviz validate_palette, light + dark) */
   --mp-series-1: #2a78d6;
   --mp-series-2: #eb6834;
@@ -44,20 +46,20 @@
 }
 
 .dark {
-  --mp-bg: #0f1218;
-  --mp-surface: #161a22;
-  --mp-surface-muted: #1d222c;
-  --mp-surface-raised: #1f2530;
-  --mp-border: #2a313d;
-  --mp-border-strong: #3a4352;
-  --mp-text: #e9ecf1;
-  --mp-text-muted: #aab2be;
-  --mp-text-subtle: #8a93a0;
-  --mp-primary: #7f9bff;
-  --mp-primary-hover: #99afff;
-  --mp-primary-fg: #0d1220;
-  --mp-primary-soft: #1f2a4a;
-  --mp-focus: #99afff;
+  --mp-bg: #05070d;
+  --mp-surface: rgb(28 32 44 / 0.58);
+  --mp-surface-muted: rgb(255 255 255 / 0.07);
+  --mp-surface-raised: rgb(34 38 52 / 0.84);
+  --mp-border: rgb(255 255 255 / 0.10);
+  --mp-border-strong: rgb(255 255 255 / 0.18);
+  --mp-text: #f2f4f8;
+  --mp-text-muted: #b3bac6;
+  --mp-text-subtle: #959dab;
+  --mp-primary: #5aa9ff;
+  --mp-primary-hover: #7dbbff;
+  --mp-primary-fg: #04101f;
+  --mp-primary-soft: rgb(90 169 255 / 0.16);
+  --mp-focus: #7dbbff;
   --mp-high: #ff8a80;
   --mp-high-soft: #3a1b1a;
   --mp-medium: #f5b860;
@@ -72,7 +74,7 @@
   --mp-danger-soft: #3a1b1a;
   --mp-info: #8cbcf2;
   --mp-info-soft: #16263a;
-  --mp-overlay: rgb(0 0 0 / 0.6);
+  --mp-overlay: rgb(0 0 0 / 0.5);
   --mp-series-1: #3987e5;
   --mp-series-2: #d95926;
   --mp-grid: #262c37;
@@ -114,14 +116,14 @@
 }
 
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
   --font-mono: ui-monospace, 'Cascadia Code', 'SFMono-Regular', Menlo, monospace;
-  --radius-sm: 0.375rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
-  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.06), 0 1px 3px rgb(16 24 40 / 0.08);
-  --shadow-pop: 0 10px 30px rgb(16 24 40 / 0.18);
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1.125rem;
+  --radius-xl: 1.5rem;
+  --shadow-card: 0 1px 1px rgb(16 24 40 / 0.04), 0 8px 28px rgb(30 40 90 / 0.08);
+  --shadow-pop: 0 2px 6px rgb(16 24 40 / 0.08), 0 24px 60px rgb(20 28 70 / 0.22);
 }
 
 @layer base {
@@ -133,6 +135,12 @@
     background: var(--mp-bg);
     color: var(--mp-text);
     min-height: 100vh;
+    min-height: 100dvh;
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+  h1, h2, h3 {
+    letter-spacing: -0.02em;
   }
   :focus-visible {
     outline: 2px solid var(--mp-focus);

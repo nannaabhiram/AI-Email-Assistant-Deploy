@@ -17,8 +17,8 @@ export interface TopNavigationProps {
 
 export function TopNavigation({ userEmail, unreadNotifications = 0, onSearch, onOpenMenu, onOpenNotifications, onProfile, onSignOut }: TopNavigationProps) {
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-surface/95 px-4 backdrop-blur">
-      {onOpenMenu && <IconButton className="lg:hidden" label="Open navigation" icon={<Menu className="h-5 w-5" aria-hidden />} onClick={onOpenMenu} showTooltip={false} />}
+    <header className="mp-glass-bar sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border px-4 pt-[env(safe-area-inset-top)] box-content sm:px-6">
+      {onOpenMenu && <IconButton className="hidden sm:inline-flex lg:hidden" label="Open navigation" icon={<Menu className="h-5 w-5" aria-hidden />} onClick={onOpenMenu} showTooltip={false} />}
       {onSearch && <SearchInput className="max-w-xl" label="Search mail" placeholder="Ask: “emails needing a reply today”" onSubmit={(q) => q && onSearch(q)} />}
       <div className="ml-auto flex items-center gap-2">
         <ThemeToggle className="hidden sm:inline-flex" />
