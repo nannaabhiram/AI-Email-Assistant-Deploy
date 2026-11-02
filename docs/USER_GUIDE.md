@@ -16,3 +16,11 @@
 14. **Analytics**: volume, priority distribution, reply backlog and median response time, overdue tasks, overrides, and AI latency and failure rates.
 15. **Security & accounts**: grant send or modify permissions only when needed, sync, full resync, disconnect (optionally deleting data), DGX diagnostics, background jobs, audit log, and account deletion.
 16. **Preferences**: timezone, briefing time, notifications, scoring thresholds and weights, the review-confidence threshold, auto-analysis, attachment handling, sync window, retention, and deleting synced data.
+
+## Compose and send
+
+- Press **Compose** (sidebar on desktop, the pencil button on phones) or the **c** key. The window floats bottom-right on desktop, can be minimized or made full screen, and is a full-screen sheet on phones.
+- Type part of a name or address in To, Cc or Bcc (e.g. `nanna.ab`). Suggestions come from people you have emailed or who emailed you, ranked by how well they match, how often you write to them and how recently. Small typos still match. Use ↑/↓ and Enter or Tab to pick; paste a list of addresses to add them all.
+- **Send** (or Ctrl/Cmd + Enter) sends from your connected Gmail after a 10-second undo window. Press **Undo** in that window to reopen the message unsent. Sent mail is recorded under Approvals for audit; it does not wait for approval because you sent it yourself.
+- Closing the window keeps the draft on this device; Compose reopens it. The trash icon discards it.
+- Sending needs the Gmail send permission. If it is missing, the window offers **Grant permission** and keeps your message.

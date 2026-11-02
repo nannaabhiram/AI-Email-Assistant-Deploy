@@ -26,7 +26,8 @@ from email.utils import formatdate
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.config import get_settings
 from app.db.models import (
@@ -36,6 +37,7 @@ from app.db.models import (
     ActionType,
     ApprovalState,
     ConnectedAccount,
+    Contact,
     Draft,
     DraftStatus,
     EmailMessage,
@@ -91,7 +93,7 @@ async def _send_params(s: Any, draft: Draft, account: ConnectedAccount) -> dict[
     references = None
     if reply_to is not None and reply_to.rfc822_message_id:
         references = " ".join(filter(None, [reply_to.references_header, reply_to.rfc822_message_id]))[-2000:]
-    return {
+    params: dict[str, Any] = {
         "account_email": account.email_address,
         "to": list(draft.to_addresses),
         "cc": list(draft.cc_addresses),
@@ -102,6 +104,10 @@ async def _send_params(s: Any, draft: Draft, account: ConnectedAccount) -> dict[
         "references": references,
         "draft_id": str(draft.id),
     }
+    # Only present when used, so hashes of approvals created before Bcc existed stay valid.
+    if draft.bcc_addresses:
+        params["bcc"] = list(draft.bcc_addresses)
+    return params
 
 
 def params_hash(params: dict[str, Any]) -> str:
@@ -327,6 +333,9 @@ def build_mime(params: dict[str, Any], message_id_header: str) -> str:
     mime["To"] = ", ".join(params["to"])
     if params.get("cc"):
         mime["Cc"] = ", ".join(params["cc"])
+    if params.get("bcc"):
+        # Gmail delivers to Bcc recipients and strips this header from the copies others receive.
+        mime["Bcc"] = ", ".join(params["bcc"])
     mime["Subject"] = params["subject"]
     mime["Date"] = formatdate(localtime=False, usegmt=True)
     mime["Message-ID"] = message_id_header
@@ -509,6 +518,7 @@ async def execute_approval(approval_id: UUID, gmail: GmailClient | None = None) 
             exe.error = f"{len(result['failed'])} message(s) failed" if partial else None
             if row.action_type == ActionType.send_reply and row.draft_id:
                 await s.execute(update(Draft).where(Draft.id == row.draft_id).values(status=DraftStatus.sent))
+                await mark_recipients_used(s, row.user_id, row.params)
             elif row.action_type in MAILBOX_ACTIONS:
                 await _apply_local_labels(s, row, result)
             record_audit(s, user_id=row.user_id, actor="worker", event="action.succeeded",
@@ -524,6 +534,19 @@ async def execute_approval(approval_id: UUID, gmail: GmailClient | None = None) 
         await s.flush()
         await s.refresh(row)
         return row
+
+
+async def mark_recipients_used(s: Any, user_id: UUID, params: dict[str, Any]) -> None:
+    """Bump recency for autocomplete right away. Counts stay untouched: the next sync of the
+    sent message increments them, so nothing is counted twice."""
+    now = datetime.now(UTC)
+    for email in dict.fromkeys([*params.get("to", []), *params.get("cc", []), *params.get("bcc", [])]):
+        stmt = pg_insert(Contact).values(user_id=user_id, email=email, domain=email.split("@")[-1],
+                                         last_outbound_at=now)
+        await s.execute(stmt.on_conflict_do_update(
+            index_elements=["user_id", "email"],
+            set_={"last_outbound_at": func.greatest(Contact.last_outbound_at, stmt.excluded.last_outbound_at)},
+        ))
 
 
 async def _apply_local_labels(s: Any, approval: ActionApproval, result: dict[str, Any]) -> None:

@@ -325,6 +325,7 @@ export interface Draft {
   reply_to_message_id: string | null
   to_addresses: string[]
   cc_addresses: string[]
+  bcc_addresses?: string[]
   subject: string
   body: string
   tone: Tone | string
@@ -591,4 +592,20 @@ export interface LlmDiagnostics {
   timeout_seconds: number
   fallback_mode: string
   embeddings_configured: boolean
+}
+
+export interface RecipientSuggestion {
+  email: string
+  name: string | null
+  is_vip: boolean
+  sent_count: number
+  received_count: number
+  last_contacted_at: string | null
+}
+
+export interface ComposeSendResult {
+  approval_id: string
+  draft_id: string
+  state: ApprovalState
+  send_at: string
 }

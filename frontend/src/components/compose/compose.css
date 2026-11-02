@@ -1,0 +1,261 @@
+/* Gmail-style compose window on the MailPilot glass material. */
+.mp-compose {
+  position: fixed;
+  z-index: 55;
+  right: 1.5rem;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  width: min(34rem, calc(100vw - 2rem));
+  height: min(38rem, calc(100dvh - 5rem));
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-bottom: 0;
+  background: var(--mp-surface-raised);
+  box-shadow: var(--glass-highlight), var(--shadow-pop);
+  animation: mp-compose-in 380ms var(--ease-spring) both;
+  transition: height 320ms var(--ease-ios), width 320ms var(--ease-ios), border-radius 320ms var(--ease-ios);
+}
+
+.mp-compose[data-mode='minimized'] {
+  height: 3rem;
+  width: min(20rem, calc(100vw - 2rem));
+}
+
+.mp-compose[data-mode='maximized'] {
+  right: 50%;
+  bottom: 50%;
+  translate: 50% 50%;
+  width: min(64rem, calc(100vw - 4rem));
+  height: min(52rem, calc(100dvh - 4rem));
+  border-radius: var(--radius-xl);
+  border-bottom: 1px solid var(--mp-border);
+}
+
+.mp-compose-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 54;
+  background: var(--mp-overlay);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  animation: mp-fade-in 240ms ease both;
+}
+
+.mp-compose__head {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 3rem;
+  flex-shrink: 0;
+  padding: 0 0.5rem 0 1rem;
+  border-bottom: 1px solid var(--mp-border);
+  border-radius: inherit;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  background: color-mix(in srgb, var(--mp-primary) 7%, transparent);
+}
+
+.mp-compose[data-mode='minimized'] .mp-compose__head {
+  border-bottom: 0;
+}
+
+.mp-compose__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  color: var(--mp-text-muted);
+  transition: background-color 200ms ease, color 200ms ease, transform 150ms var(--ease-ios);
+}
+.mp-compose__icon:hover { background: var(--mp-surface-muted); color: var(--mp-text); }
+.mp-compose__icon:active { transform: scale(0.92); }
+
+.mp-compose__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.mp-compose-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0 1rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--mp-border);
+}
+
+.mp-compose__text {
+  flex: 1;
+  min-height: 8rem;
+  resize: none;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  color: var(--mp-text);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  outline: none;
+}
+
+.mp-compose__foot {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  padding: 0.625rem 0.75rem 0.75rem;
+}
+
+/* Recipient chips */
+.mp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  max-width: 100%;
+  height: 1.75rem;
+  padding: 0 0.25rem 0 0;
+  border: 1px solid var(--mp-border-strong);
+  border-radius: 9999px;
+  background: var(--mp-surface);
+  font-size: 0.8125rem;
+  color: var(--mp-text);
+  animation: mp-chip-in 260ms var(--ease-spring) both;
+}
+.mp-chip__avatar > span { width: 1.625rem; height: 1.625rem; font-size: 10px; }
+.mp-chip__x {
+  display: inline-flex;
+  border-radius: 9999px;
+  padding: 0.125rem;
+  color: var(--mp-text-subtle);
+}
+.mp-chip__x:hover { background: var(--mp-surface-muted); color: var(--mp-text); }
+.mp-chip--invalid {
+  border-color: var(--mp-danger);
+  background: var(--mp-danger-soft);
+  color: var(--mp-danger);
+}
+
+/* Suggestion dropdown */
+.mp-suggest {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 0.25rem);
+  left: 2.75rem;
+  right: 0;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--mp-surface-raised);
+  box-shadow: var(--glass-highlight), var(--shadow-pop);
+  animation: mp-suggest-in 200ms var(--ease-out-expo) both;
+}
+.mp-suggest__item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0.25rem;
+  padding: 0.5rem 0.625rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.mp-suggest__item--active { background: var(--mp-primary-soft); }
+
+/* Send / undo snackbar */
+.mp-outbox {
+  position: fixed;
+  z-index: 60;
+  left: 1rem;
+  bottom: calc(var(--tabbar-h) + 1.25rem + var(--safe-bottom));
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: min(24rem, calc(100vw - 2rem));
+  min-height: 3rem;
+  padding: 0.5rem 0.75rem 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  background: var(--mp-surface-raised);
+  box-shadow: var(--glass-highlight), var(--shadow-pop);
+  font-size: 0.875rem;
+  color: var(--mp-text);
+  animation: mp-compose-in 320ms var(--ease-spring) both;
+}
+.mp-outbox__action {
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  color: var(--mp-primary);
+}
+.mp-outbox__action:hover { background: var(--mp-primary-soft); }
+.mp-outbox__close { padding: 0 0.375rem; font-size: 1.25rem; line-height: 1; color: var(--mp-text-subtle); }
+
+/* Mobile compose launcher */
+.mp-compose-fab {
+  position: fixed;
+  z-index: 36;
+  right: 1rem;
+  bottom: calc(var(--tabbar-h) + 1.25rem + var(--safe-bottom));
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 3.5rem;
+  padding: 0 1.25rem;
+  border-radius: 1.25rem;
+  font-weight: 600;
+}
+
+@media (min-width: 64rem) {
+  .mp-compose-fab { display: none; }
+  .mp-outbox { bottom: 1rem; }
+}
+
+/* Phones: compose is a full-screen sheet. */
+@media (max-width: 39.99rem) {
+  .mp-compose,
+  .mp-compose[data-mode='maximized'] {
+    inset: 0;
+    translate: none;
+    width: 100%;
+    height: 100dvh;
+    border: 0;
+    border-radius: 0;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+    animation-name: mp-sheet-up;
+  }
+  .mp-compose[data-mode='minimized'] {
+    inset: auto 0.75rem calc(var(--tabbar-h) + 1rem + var(--safe-bottom)) 0.75rem;
+    width: auto;
+    height: 3rem;
+    padding: 0;
+    border-radius: var(--radius-lg);
+  }
+  .mp-compose-scrim,
+  .mp-compose__icon--desk { display: none; }
+  .mp-suggest { left: 0; }
+}
+
+@keyframes mp-compose-in {
+  from { opacity: 0; transform: translateY(1.5rem) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes mp-sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+@keyframes mp-suggest-in {
+  from { opacity: 0; transform: translateY(-0.25rem); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes mp-chip-in {
+  from { opacity: 0; transform: scale(0.85); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes mp-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mp-compose, .mp-outbox, .mp-chip, .mp-suggest, .mp-compose-scrim { animation: none; transition: none; }
+}

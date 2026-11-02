@@ -11,6 +11,7 @@ import type {
   Attachment,
   Briefing,
   Commitment,
+  ComposeSendResult,
   ConnectedAccount,
   Contact,
   ContactDetail,
@@ -29,6 +30,7 @@ import type {
   Page,
   Priority,
   Profile,
+  RecipientSuggestion,
   SearchResponse,
   Settings,
   SyncState,
@@ -173,6 +175,12 @@ export const api = {
   discardDraft: (id: string) => request<void>('DELETE', `/api/v1/drafts/${id}`),
   requestApproval: (id: string, acknowledge_external_recipients = false) =>
     request<Approval>('POST', `/api/v1/drafts/${id}/request-approval`, { acknowledge_external_recipients }),
+
+  composeSend: (body: { to: string[]; cc: string[]; bcc: string[]; subject: string; body: string; undo_seconds: number }) =>
+    request<ComposeSendResult>('POST', '/api/v1/compose/send', body),
+  undoSend: (approvalId: string) => request<Draft>('POST', `/api/v1/compose/${approvalId}/undo`),
+  recipients: (q: string, signal?: AbortSignal) =>
+    request<{ items: RecipientSuggestion[]; total: number }>('GET', '/api/v1/compose/recipients', undefined, { q, limit: 8 }, signal),
 
   approvals: (state?: ApprovalState[]) => request<Page<Approval>>('GET', '/api/v1/approvals', undefined, { state }),
   approval: (id: string) => request<Approval>('GET', `/api/v1/approvals/${id}`),

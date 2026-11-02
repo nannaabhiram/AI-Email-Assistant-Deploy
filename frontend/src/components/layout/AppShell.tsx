@@ -1,6 +1,8 @@
-import { CloudOff, FlaskConical, ServerCrash, WifiOff, X } from 'lucide-react'
+import { CloudOff, FlaskConical, Pencil, ServerCrash, WifiOff, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
+import { ComposeProvider } from '@/components/compose/ComposeProvider'
+import { useCompose } from '@/components/compose/draft'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { EmptyState } from '@/components/ui/States'
@@ -23,6 +25,11 @@ function Banner({ tone, icon, children }: { tone: 'warning' | 'danger'; icon: Re
 }
 
 export function AppShell() {
+  return <ComposeProvider><Shell /></ComposeProvider>
+}
+
+function Shell() {
+  const compose = useCompose()
   const { session, signOut } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -58,7 +65,7 @@ export function AppShell() {
       <a href="#main" className="sr-only-focusable rounded bg-primary px-3 py-2 text-primary-fg">Skip to content</a>
       <aside className="hidden w-72 shrink-0 p-3 lg:block">
         <div className="mp-glass sticky top-3 h-[calc(100vh-1.5rem)] overflow-hidden rounded-xl">
-          <NavigationSidebar badges={{ '/approvals': pending.data?.total ?? 0 }} />
+          <NavigationSidebar badges={{ '/approvals': pending.data?.total ?? 0 }} onCompose={() => compose.open()} />
         </div>
       </aside>
       <div className="mp-drawer fixed inset-0 z-40 lg:hidden" data-open={drawer} inert={!drawer} aria-hidden={!drawer}>
@@ -67,7 +74,7 @@ export function AppShell() {
           <Button variant="ghost" size="icon" className="absolute top-3 right-3 z-10 rounded-full" aria-label="Close navigation" onClick={() => setDrawer(false)}>
             <X className="h-5 w-5" aria-hidden />
           </Button>
-          <NavigationSidebar badges={{ '/approvals': pending.data?.total ?? 0 }} onNavigate={() => setDrawer(false)} />
+          <NavigationSidebar badges={{ '/approvals': pending.data?.total ?? 0 }} onNavigate={() => setDrawer(false)} onCompose={() => compose.open()} />
         </div>
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
@@ -114,6 +121,12 @@ export function AppShell() {
           <div key={section} className="mp-page"><Outlet /></div>
         </main>
         <MobileTabBar approvals={pending.data?.total ?? 0} onMore={() => setDrawer(true)} />
+        {!compose.isOpen && (
+          <button type="button" className="mp-compose-fab mp-gloss-primary" onClick={() => compose.open()} aria-label="Compose">
+            <Pencil className="h-5 w-5" aria-hidden />
+            <span className="max-sm:sr-only">Compose</span>
+          </button>
+        )}
       </div>
       <Dialog open={notifOpen} onClose={() => setNotifOpen(false)} title="Notifications"
         footer={unread > 0 ? <Button variant="secondary" size="sm" loading={readAll.isPending} onClick={() => readAll.mutate(undefined)}>Mark all as read</Button> : undefined}>

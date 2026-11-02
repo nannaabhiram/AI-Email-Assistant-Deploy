@@ -1,5 +1,5 @@
 import {
-  BarChart3, CalendarDays, CheckSquare, FileText, Inbox, LayoutDashboard, Paperclip, PenLine, Search, Settings, ShieldCheck, SlidersHorizontal, Users,
+  BarChart3, CalendarDays, CheckSquare, FileText, Inbox, LayoutDashboard, Paperclip, PenLine, Pencil, Search, Settings, ShieldCheck, SlidersHorizontal, Users,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { NavLink } from 'react-router'
@@ -51,16 +51,27 @@ export const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
 export interface NavigationSidebarProps {
   badges?: Record<string, number>
   onNavigate?: () => void
+  onCompose?: () => void
   className?: string
 }
 
-export function NavigationSidebar({ badges = {}, onNavigate, className }: NavigationSidebarProps) {
+export function NavigationSidebar({ badges = {}, onNavigate, onCompose, className }: NavigationSidebarProps) {
   return (
     <nav aria-label="Main" className={cn('flex h-full flex-col gap-5 overflow-y-auto px-3 py-4', className)}>
       <div className="flex items-center gap-2 px-2">
         <span className="mp-logo flex h-9 w-9 items-center justify-center rounded-[0.7rem] text-sm font-bold" aria-hidden>MP</span>
         <span className="text-base font-semibold tracking-tight text-fg">MailPilot AI</span>
       </div>
+      {onCompose && (
+        <button
+          type="button"
+          onClick={() => { onCompose(); onNavigate?.() }}
+          className="mp-gloss-primary flex h-12 w-fit items-center gap-2.5 rounded-[1.1rem] px-5 text-sm font-semibold transition-transform duration-300 ease-[var(--ease-ios)] active:scale-[0.96]"
+        >
+          <Pencil className="h-4 w-4" aria-hidden />
+          Compose
+        </button>
+      )}
       {NAV_SECTIONS.map((section) => (
         <div key={section.label}>
           <p className="mb-1 px-2 text-xs font-semibold tracking-wide text-fg-subtle uppercase">{section.label}</p>

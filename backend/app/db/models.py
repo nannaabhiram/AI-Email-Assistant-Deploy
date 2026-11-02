@@ -469,6 +469,7 @@ class Draft(TimestampMixin, Base):
     reply_to_message_id: Mapped[UUID | None] = mapped_column(ForeignKey("email_messages.id"))
     to_addresses: Mapped[list[str]] = mapped_column(server_default=text("'{}'"))
     cc_addresses: Mapped[list[str]] = mapped_column(server_default=text("'{}'"))
+    bcc_addresses: Mapped[list[str]] = mapped_column(server_default=text("'{}'"))
     subject: Mapped[str] = mapped_column(server_default="")
     body: Mapped[str] = mapped_column(server_default="")
     tone: Mapped[str] = mapped_column(server_default="professional")

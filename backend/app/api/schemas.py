@@ -354,6 +354,7 @@ class DraftOut(ORM):
     reply_to_message_id: UUID | None
     to_addresses: list[str]
     cc_addresses: list[str]
+    bcc_addresses: list[str] = Field(default_factory=list)
     subject: str
     body: str
     tone: str
