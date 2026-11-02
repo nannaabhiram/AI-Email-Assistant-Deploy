@@ -417,7 +417,7 @@ class DecisionIn(BaseModel):
 
 
 class ProposeActionIn(BaseModel):
-    action_type: Literal["archive", "apply_label", "remove_label", "mark_read", "mark_unread"]
+    action_type: Literal["archive", "apply_label", "remove_label", "mark_read", "mark_unread", "trash"]
     message_ids: list[UUID] = Field(min_length=1, max_length=200)
     label_name: str | None = Field(default=None, max_length=100)
 

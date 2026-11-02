@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import base64
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage as MimeMessage
 from email.utils import formatdate
@@ -62,7 +63,7 @@ log = get_logger(__name__)
 OPEN_STATES = (ApprovalState.PROPOSED, ApprovalState.PENDING_APPROVAL, ApprovalState.APPROVED)
 STALE_EXECUTION = timedelta(minutes=3)
 MAILBOX_ACTIONS = {ActionType.archive, ActionType.apply_label, ActionType.remove_label, ActionType.mark_read,
-                   ActionType.mark_unread}
+                   ActionType.mark_unread, ActionType.trash}
 
 
 class PermissionUpgradeRequired(AppError):
@@ -196,7 +197,7 @@ async def propose_mailbox_action(
         }
         verb = {ActionType.archive: "Archive", ActionType.apply_label: f"Apply label “{label_name}” to",
                 ActionType.remove_label: f"Remove label “{label_name}” from", ActionType.mark_read: "Mark as read",
-                ActionType.mark_unread: "Mark as unread"}[action_type]
+                ActionType.mark_unread: "Mark as unread", ActionType.trash: "Move to trash"}[action_type]
         subjects = ", ".join(f"“{(r.subject or '(no subject)')[:60]}”" for r in rows[:3])
         approval = ActionApproval(
             user_id=user_id, account_id=account.id, action_type=action_type,
@@ -445,6 +446,8 @@ async def _perform(gmail: GmailClient, approval: ActionApproval, execution: Acti
         return {"gmail_message_id": sent.get("id"), "gmail_thread_id": sent.get("threadId")}
 
     ids: list[str] = p["gmail_message_ids"]
+    if approval.action_type == ActionType.trash:
+        return await _for_each(ids, gmail.trash_message, {"add": ["TRASH"], "remove": ["INBOX"]})
     add: list[str] = []
     remove: list[str] = []
     if approval.action_type == ActionType.archive:
@@ -456,10 +459,15 @@ async def _perform(gmail: GmailClient, approval: ActionApproval, execution: Acti
     else:
         label_id = await _ensure_label(gmail, approval.account_id, approval.user_id, p["label_name"])
         (add if approval.action_type == ActionType.apply_label else remove).append(label_id)
+    return await _for_each(ids, lambda mid: gmail.modify_message(mid, add=add, remove=remove),
+                           {"add": add, "remove": remove})
+
+
+async def _for_each(ids: list[str], op: Callable[[str], Awaitable[Any]], extra: dict[str, Any]) -> dict[str, Any]:
     done, failed = [], []
     for mid in ids:
         try:
-            await gmail.modify_message(mid, add=add, remove=remove)
+            await op(mid)
             done.append(mid)
         except GmailError as exc:
             if isinstance(exc, GmailAuthError):
@@ -467,7 +475,7 @@ async def _perform(gmail: GmailClient, approval: ActionApproval, execution: Acti
             failed.append({"id": mid, "error": str(exc)[:200]})
     if failed and not done:
         raise GmailError(f"All {len(failed)} message updates failed")
-    return {"modified": done, "failed": failed, "add": add, "remove": remove}
+    return {"modified": done, "failed": failed, **extra}
 
 
 async def execute_approval(approval_id: UUID, gmail: GmailClient | None = None) -> ActionApproval | None:
@@ -528,3 +536,5 @@ async def _apply_local_labels(s: Any, approval: ActionApproval, result: dict[str
         labels += [lbl for lbl in result.get("add", []) if lbl not in labels]
         msg.label_ids = labels
         msg.is_unread = "UNREAD" in labels
+        if "TRASH" in labels:
+            msg.is_deleted = True

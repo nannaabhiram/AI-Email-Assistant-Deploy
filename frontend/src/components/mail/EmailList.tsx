@@ -14,6 +14,8 @@ export interface EmailListProps {
   selectable?: boolean
   checkedIds?: Set<string>
   onCheckedChange?: (id: string, checked: boolean) => void
+  selectionMode?: boolean
+  onLongPress?: (id: string) => void
   emptyTitle?: string
   emptyDescription?: ReactNode
   label?: string
@@ -21,7 +23,7 @@ export interface EmailListProps {
 }
 
 export function EmailList({
-  emails, loading, error, onRetry, selectedId, onOpen, selectable, checkedIds, onCheckedChange,
+  emails, loading, error, onRetry, selectedId, onOpen, selectable, checkedIds, onCheckedChange, selectionMode, onLongPress,
   emptyTitle = 'No emails here', emptyDescription = 'Nothing matches these filters right now.', label = 'Emails', now,
 }: EmailListProps) {
   if (loading && !emails) return <LoadingSkeleton variant="list" lines={6} label="Loading emails" />
@@ -33,7 +35,7 @@ export function EmailList({
     <ul aria-label={label} aria-busy={loading || undefined} className="space-y-2.5">
       {emails.map((e) => (
         <EmailListItem key={e.id} email={e} selected={selectedId === e.id} onOpen={onOpen} selectable={selectable}
-          checked={checkedIds?.has(e.id)} onCheckedChange={onCheckedChange} now={now} />
+          checked={checkedIds?.has(e.id)} onCheckedChange={onCheckedChange} selectionMode={selectionMode} onLongPress={onLongPress} now={now} />
       ))}
     </ul>
   )

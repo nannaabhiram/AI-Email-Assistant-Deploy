@@ -59,6 +59,7 @@ class FakeGmail:
         self.sent: list[dict[str, Any]] = []
         self.attachments: dict[str, bytes] = {}
         self.modified: list[tuple[str, list[str], list[str]]] = []
+        self.trashed: list[str] = []
         self.fail_send_after_delivery = False
         self.calls: list[str] = []
 
@@ -113,6 +114,10 @@ class FakeGmail:
     async def modify_message(self, message_id: str, add: list[str] | None = None, remove: list[str] | None = None) -> dict[str, Any]:
         self.modified.append((message_id, add or [], remove or []))
         return {"id": message_id}
+
+    async def trash_message(self, message_id: str) -> dict[str, Any]:
+        self.trashed.append(message_id)
+        return {"id": message_id, "labelIds": ["TRASH"]}
 
     async def send_raw(self, raw_b64url: str, thread_id: str | None) -> dict[str, Any]:
         raw = base64.urlsafe_b64decode(raw_b64url + "=" * (-len(raw_b64url) % 4)).decode()

@@ -117,6 +117,7 @@ class ActionType(enum.StrEnum):
     remove_label = "remove_label"
     mark_read = "mark_read"
     mark_unread = "mark_unread"
+    trash = "trash"
 
 
 class ApprovalState(enum.StrEnum):

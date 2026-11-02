@@ -14,7 +14,7 @@ export type ApprovalState =
   | 'EXPIRED'
   | 'FAILED'
   | 'CANCELLED'
-export type ActionType = 'send_reply' | 'archive' | 'apply_label' | 'remove_label' | 'mark_read' | 'mark_unread'
+export type ActionType = 'send_reply' | 'archive' | 'apply_label' | 'remove_label' | 'mark_read' | 'mark_unread' | 'trash'
 export type TaskStatus = 'suggested' | 'open' | 'done' | 'dismissed'
 export type CommitmentStatus = 'suggested' | 'open' | 'fulfilled' | 'cancelled'
 

@@ -1,4 +1,4 @@
-import { Archive, CheckCircle2, Clock, Mail, RotateCcw, Tag, XCircle } from 'lucide-react'
+import { Archive, CheckCircle2, Clock, Mail, RotateCcw, Tag, Trash2, XCircle } from 'lucide-react'
 import { useState } from 'react'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -19,7 +19,8 @@ const STATE_TONE: Record<ApprovalState, 'neutral' | 'info' | 'warning' | 'succes
   CANCELLED: 'neutral',
 }
 
-const ACTION_ICON = { send_reply: Mail, archive: Archive, apply_label: Tag, remove_label: Tag, mark_read: CheckCircle2, mark_unread: Mail }
+const ACTION_ICON = { send_reply: Mail, archive: Archive, apply_label: Tag, remove_label: Tag, mark_read: CheckCircle2, mark_unread: Mail, trash: Trash2 }
+const actionTitle = (t: Approval['action_type']) => (t === 'trash' ? 'Move to trash' : humanize(t))
 
 export interface ApprovalCardProps {
   approval: Approval
@@ -39,10 +40,10 @@ export function ApprovalCard({ approval: a, onApprove, onReject, onCancel, onRet
   const isSend = a.action_type === 'send_reply'
   const expired = new Date(a.expires_at).getTime() < (now ?? renderedAt).getTime()
   return (
-    <article aria-label={`${humanize(a.action_type)} approval`} className={cn('rounded-lg border bg-surface', decidable ? 'border-warning/50' : 'border-border')}>
+    <article aria-label={`${actionTitle(a.action_type)} approval`} className={cn('rounded-lg border bg-surface', decidable ? 'border-warning/50' : 'border-border')}>
       <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
         <Icon className="h-4 w-4 text-fg-muted" aria-hidden />
-        <h3 className="text-sm font-semibold text-fg">{humanize(a.action_type)}</h3>
+        <h3 className="text-sm font-semibold text-fg">{actionTitle(a.action_type)}</h3>
         <Badge tone={STATE_TONE[a.state]}>{humanize(a.state.toLowerCase())}</Badge>
         {a.proposed_by !== 'user' && <Badge tone="outline">Suggested by {a.proposed_by === 'ai' ? 'AI' : 'rules'}</Badge>}
         <span className="ml-auto flex items-center gap-1 text-xs text-fg-subtle">

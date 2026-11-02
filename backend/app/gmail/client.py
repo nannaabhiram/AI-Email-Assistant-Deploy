@@ -200,6 +200,9 @@ class GmailClient:
         body = {"addLabelIds": add or [], "removeLabelIds": remove or []}
         return await self._request("POST", f"messages/{message_id}/modify", json=body)
 
+    async def trash_message(self, message_id: str) -> dict[str, Any]:
+        return await self._request("POST", f"messages/{message_id}/trash")
+
     async def modify_thread(
         self, thread_id: str, add: list[str] | None = None, remove: list[str] | None = None
     ) -> dict[str, Any]:
