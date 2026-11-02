@@ -30,7 +30,7 @@ export function EmailList({
     return <EmptyState title={emptyTitle} description={emptyDescription} icon={<MailCheck className="h-6 w-6" aria-hidden />} />
   }
   return (
-    <ul aria-label={label} aria-busy={loading || undefined} className="overflow-hidden rounded-lg border border-border bg-surface">
+    <ul aria-label={label} aria-busy={loading || undefined} className="space-y-2.5">
       {emails.map((e) => (
         <EmailListItem key={e.id} email={e} selected={selectedId === e.id} onOpen={onOpen} selectable={selectable}
           checked={checkedIds?.has(e.id)} onCheckedChange={onCheckedChange} now={now} />

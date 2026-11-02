@@ -10,7 +10,7 @@ export interface IconButtonProps extends Omit<ButtonProps, 'children' | 'leftIco
   showTooltip?: boolean
 }
 
-export function IconButton({ label, icon, size = 'md', variant = 'ghost', showTooltip = true, ...props }: IconButtonProps) {
+export function IconButton({ label, icon, size = 'md', variant = 'glass', showTooltip = true, ...props }: IconButtonProps) {
   const button = (
     <Button aria-label={label} variant={variant} size={size === 'sm' ? 'icon-sm' : 'icon'} {...props}>
       {props.loading ? null : icon}

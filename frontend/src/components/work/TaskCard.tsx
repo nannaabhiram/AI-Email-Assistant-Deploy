@@ -24,7 +24,7 @@ export function TaskCard({ task, onToggleDone, onConfirm, onDismiss, onDelete, o
   return (
     <article
       aria-label={`Task: ${task.title}`}
-      className={cn('flex gap-3 rounded-lg border bg-surface p-3', suggested ? 'border-dashed border-border-strong' : 'border-border', task.status === 'dismissed' && 'opacity-60')}
+      className={cn('mp-bubble flex gap-3 p-3.5', suggested && 'border-dashed', task.status === 'dismissed' && 'opacity-60')}
     >
       {onToggleDone && !suggested && (
         <button
@@ -41,7 +41,7 @@ export function TaskCard({ task, onToggleDone, onConfirm, onDismiss, onDelete, o
       )}
       {suggested && <CircleDashed className="mt-0.5 h-5 w-5 shrink-0 text-fg-subtle" aria-hidden />}
       <div className="min-w-0 flex-1">
-        <p className={cn('text-sm font-medium text-fg', done && 'text-fg-subtle line-through')}>{task.title}</p>
+        <p className={cn('text-sm font-medium [overflow-wrap:anywhere] text-fg', done && 'text-fg-subtle line-through')}>{task.title}</p>
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
           {suggested && <Badge tone="warning">Suggested — confirm</Badge>}
           {task.kind === 'reply_requested' && <Badge tone="primary">Reply requested</Badge>}
@@ -53,8 +53,8 @@ export function TaskCard({ task, onToggleDone, onConfirm, onDismiss, onDelete, o
           <DeadlineIndicator dueAt={task.due_at} dateType={task.due_date_type} done={done} now={now} />
         </div>
         {task.evidence && (
-          <blockquote className="mt-2 flex gap-1.5 border-l-2 border-border-strong pl-2 text-xs text-fg-muted italic">
-            <Quote className="h-3 w-3 shrink-0" aria-hidden />“{task.evidence}”
+          <blockquote className="mt-2 flex min-w-0 gap-1.5 border-l-2 border-border-strong pl-2 text-xs text-fg-muted italic">
+            <Quote className="mt-0.5 h-3 w-3 shrink-0" aria-hidden /><span className="min-w-0 [overflow-wrap:anywhere]">“{task.evidence}”</span>
           </blockquote>
         )}
         {(suggested || (task.source_message_id && onOpenSource)) && (

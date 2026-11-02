@@ -39,7 +39,7 @@ export function TopNavigation({ userEmail, unreadNotifications = 0, onSearch, on
             ...(onSignOut ? [{ label: 'Sign out', onSelect: onSignOut, icon: <LogOut className="h-4 w-4" aria-hidden />, destructive: true }] : []),
           ]}
           trigger={(props) => (
-            <Button variant="ghost" size="sm" {...props} className="max-w-48">
+            <Button variant="glass" size="sm" {...props} className="max-w-48 max-md:h-9 max-md:w-9 max-md:px-0">
               <User className="h-4 w-4 shrink-0" aria-hidden />
               <span className="hidden truncate md:inline">{userEmail ?? 'Account'}</span>
               <span className="sr-only md:hidden">Account menu</span>

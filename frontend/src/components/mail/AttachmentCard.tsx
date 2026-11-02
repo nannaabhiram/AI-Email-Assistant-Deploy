@@ -30,7 +30,7 @@ export function AttachmentCard({ attachment: a, onExtract, onDownload, extractin
   const det = a.extraction.deterministic
   const canExtract = ['not_requested', 'failed', 'done'].includes(a.extraction_status)
   return (
-    <article className={cn('rounded-lg border border-border bg-surface p-3', className)} aria-label={`Attachment ${a.filename}`}>
+    <article className={cn('mp-bubble p-3.5', className)} aria-label={`Attachment ${a.filename}`}>
       <div className="flex items-start gap-3">
         <div className="rounded-md bg-surface-muted p-2 text-fg-muted">
           {a.extraction_status === 'blocked' ? <Ban className="h-5 w-5 text-danger" aria-hidden /> : <FileText className="h-5 w-5" aria-hidden />}

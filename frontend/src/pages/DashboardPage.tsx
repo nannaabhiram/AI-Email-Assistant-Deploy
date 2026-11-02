@@ -69,8 +69,8 @@ export default function DashboardPage() {
         <MetricCard label="Pending approvals" value={approvals.data?.total} tone={approvals.data?.total ? 'warning' : 'neutral'} icon={<ShieldCheck className="h-4 w-4" />} href="/approvals" loading={approvals.isLoading} />
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="min-w-0 space-y-6 lg:col-span-2">
           <Card title="Recent important emails" actions={<Link className="text-sm text-primary hover:underline" to="/inbox?f=HIGH">View all</Link>}>
             <EmailList emails={important.data?.items} loading={important.isLoading} error={important.error} onRetry={() => void important.refetch()}
               onOpen={(id) => navigate(`/inbox/${id}`)} emptyTitle="No high-priority email" emptyDescription="Nothing urgent right now." label="Important emails" />

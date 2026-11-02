@@ -31,8 +31,8 @@ export function EmailListItem({ email, selected = false, onOpen, selectable = fa
   return (
     <li
       className={cn(
-        'group relative flex gap-3 border-b border-border px-4 py-3 transition-colors focus-within:bg-surface-muted hover:bg-surface-muted',
-        selected && 'bg-primary-soft hover:bg-primary-soft',
+        'mp-bubble group relative flex gap-3 px-4 py-3.5',
+        selected && 'mp-bubble--selected',
       )}
     >
       {selectable && (

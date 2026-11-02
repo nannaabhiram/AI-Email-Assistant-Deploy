@@ -29,9 +29,9 @@ export default function AttachmentsPage() {
       {list.isLoading ? <LoadingSkeleton variant="card" lines={3} /> : list.error ? <ErrorState error={list.error} onRetry={() => void list.refetch()} />
         : !list.data?.items.length ? <EmptyState title="No attachments" icon={<Paperclip className="h-6 w-6" aria-hidden />} description="Attachments from synced email appear here." />
         : (
-          <ul className="grid gap-3 lg:grid-cols-2">
+          <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {list.data.items.map((a) => (
-              <li key={a.id} className="space-y-1">
+              <li key={a.id} className="min-w-0 space-y-1">
                 <AttachmentCard attachment={a} expanded onExtract={(id) => extract.mutate(id)} onDownload={(id) => download.mutate(id)}
                   extracting={extract.isPending && extract.variables === a.id} />
                 <Link to={`/inbox/${a.message_id}`} className="text-xs text-primary hover:underline">Open source email</Link>

@@ -25,13 +25,13 @@ export function MetricCard({ label, value, icon, hint, tone = 'neutral', href, l
   const body = (
     <>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-fg-muted">{label}</p>
+        <p className="text-[11px] font-semibold tracking-[0.04em] text-fg-muted uppercase">{label}</p>
         {icon && <span className="text-fg-subtle" aria-hidden>{icon}</span>}
       </div>
       {loading ? (
         <div role="status" className="mt-2 h-8 w-16 animate-pulse rounded bg-surface-muted"><span className="sr-only">Loading {label}</span></div>
       ) : (
-        <p className={cn('mt-1 text-3xl font-semibold tabular-nums', TONES[tone])}>{value ?? '—'}</p>
+        <p className={cn('mt-1.5 text-[2rem] leading-none font-bold tracking-[-0.03em] tabular-nums', TONES[tone])}>{value ?? '—'}</p>
       )}
       {hint && <p className="mt-1 text-xs text-fg-subtle">{hint}</p>}
     </>
