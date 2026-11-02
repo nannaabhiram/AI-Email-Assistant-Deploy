@@ -1,5 +1,6 @@
 import { SlidersHorizontal, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { Select } from '@/components/ui/Select'
 import { cn } from '@/lib/cn'
 
 export interface FilterOption {
@@ -43,12 +44,11 @@ export function FilterBar({ options, active, onChange, label = 'Filters', sort, 
         <Button variant="ghost" size="sm" onClick={() => onChange([])} leftIcon={<X className="h-3.5 w-3.5" aria-hidden />}>Clear</Button>
       )}
       {sort && (
-        <label className="ml-auto flex items-center gap-2 text-sm text-fg-muted">
-          Sort
-          <select value={sort.value} onChange={(e) => sort.onChange(e.target.value)} className="h-8 rounded-md border border-border-strong bg-surface px-2 text-sm text-fg">
-            {sort.options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-          </select>
-        </label>
+        <div className="ml-auto flex items-center gap-2 text-sm text-fg-muted">
+          <span aria-hidden>Sort</span>
+          <Select label="Sort" hideLabel value={sort.value} onChange={(e) => sort.onChange(e.target.value)}
+            options={sort.options.map((o) => ({ value: o.id, label: o.label }))} className="h-8 min-w-32 rounded-full" />
+        </div>
       )}
     </div>
   )

@@ -3,7 +3,7 @@
  * so the raw Intl list could neither offer Asia/Kolkata nor show a saved UTC value.
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -80,7 +80,7 @@ describe('Preferences timezone', () => {
     const select = await screen.findByRole('combobox', { name: /Timezone/ })
     expect(select).toHaveValue('UTC') // not silently shown as the first list entry
     await userEvent.selectOptions(select, 'Asia/Kolkata')
-    expect(screen.getByRole('option', { name: 'Asia/Kolkata (UTC+05:30)' })).toHaveProperty('selected', true)
+    expect(within(select).getByRole('option', { name: 'Asia/Kolkata (UTC+05:30)' })).toHaveProperty('selected', true)
     await userEvent.click(screen.getByRole('button', { name: 'Save preferences' }))
     await waitFor(() => expect(patches).toHaveLength(1))
     expect(patches[0]).toMatchObject({ timezone: 'Asia/Kolkata', briefing_time: '08:00:00', version: 3 })
