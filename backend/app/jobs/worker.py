@@ -81,7 +81,7 @@ class Worker:
             try:
                 await schedule_periodic_jobs()
             except Exception as exc:
-                log.warning("schedule_failed", error_type=type(exc).__name__)
+                log.warning("schedule_failed", error_type=type(exc).__name__, error=str(exc)[:300])
 
     async def run(self) -> None:
         log.info("worker_started", worker_id=self.worker_id, concurrency=self.concurrency)
@@ -94,7 +94,7 @@ class Worker:
                     async with system_session() as s:
                         jobs = await claim(s, self.worker_id, capacity, self.settings.worker_lease_seconds)
                 except Exception as exc:  # database down: back off and retry
-                    log.warning("claim_failed", error_type=type(exc).__name__)
+                    log.warning("claim_failed", error_type=type(exc).__name__, error=str(exc)[:300])
                     await asyncio.sleep(min(30, self.settings.worker_poll_interval * 5))
                     continue
             for job in jobs:

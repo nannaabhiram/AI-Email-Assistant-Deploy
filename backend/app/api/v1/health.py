@@ -16,6 +16,9 @@ from app.config import get_settings
 from app.db.models import ConnectedAccount, Job, LLMCall, SyncState
 from app.db.session import check_database, system_session, user_session
 from app.llm.service import get_llm_service, inference_state
+from app.logging import get_logger
+
+log = get_logger(__name__)
 
 router = APIRouter(tags=["health"])
 
@@ -31,6 +34,7 @@ async def ready() -> JSONResponse:
         await check_database()
         return JSONResponse({"status": "ready", "database": "ok"})
     except Exception as exc:
+        log.warning("ready_failed", error_type=type(exc).__name__, error=str(exc)[:300])
         return JSONResponse({"status": "not_ready", "database": type(exc).__name__}, status_code=503)
 
 
