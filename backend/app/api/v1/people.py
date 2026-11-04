@@ -56,7 +56,7 @@ from app.db.session import system_session, user_session
 from app.errors import AppError, ConflictError, NotFoundError, ServiceUnavailableError
 from app.gmail.client import SCOPE_MODIFY, SCOPE_SEND
 from app.services.audit import record_audit
-from app.services.ntfy import new_topic, send_ntfy, subscribe_url
+from app.services.ntfy import NtfyError, new_topic, publish, subscribe_url
 from app.services.timezones import canonical_timezone
 
 router = APIRouter(prefix="/api/v1", tags=["people & settings"])
@@ -247,10 +247,12 @@ async def test_phone_alert(user: SensitiveUserDep) -> None:
     topic = ((settings.notification_prefs if settings else None) or {}).get("ntfy_topic")
     if not topic:
         raise AppError("Enable phone alerts first", code="phone_alerts_disabled")
-    if not await send_ntfy(topic, title="MailPilot test alert",
-                           body="Phone alerts work. Offers and interview calls will arrive here.",
-                           click_url=get_settings().frontend_url, priority=4, tags="white_check_mark"):
-        raise ServiceUnavailableError("Could not reach the push service", code="push_unavailable")
+    try:
+        await publish(topic, title="MailPilot test alert",
+                      body="Phone alerts work. Offers and interview calls will arrive here.",
+                      click_url=get_settings().frontend_url, priority=4, tags="white_check_mark")
+    except NtfyError as exc:
+        raise ServiceUnavailableError(f"Could not reach the push service ({exc})", code="push_unavailable") from exc
 
 
 @router.get("/me", response_model=ProfileOut)
