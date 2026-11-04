@@ -6,7 +6,7 @@ from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Query
-from sqlalchemy import and_, case, exists, func, or_, select, update
+from sqlalchemy import and_, any_, case, exists, func, literal, or_, select, update
 
 from app.api.deps import CurrentUserDep, Limit, Offset, SensitiveUserDep
 from app.api.schemas import (
@@ -100,7 +100,7 @@ async def list_emails(
     if account_id:
         conds.append(EmailMessage.account_id == account_id)
     if label:
-        conds.append(EmailMessage.label_ids.contains([label]))
+        conds.append(literal(label) == any_(EmailMessage.label_ids))
     if q:
         like = f"%{q.lower()}%"
         conds.append(or_(func.lower(EmailMessage.subject).like(like), func.lower(EmailMessage.from_address).like(like),

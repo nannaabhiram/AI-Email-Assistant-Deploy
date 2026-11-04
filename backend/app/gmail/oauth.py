@@ -267,7 +267,10 @@ async def revoke_and_disconnect(user_id: UUID, account_id: UUID, delete_data: bo
         if account is None or account.user_id != user_id:
             raise NotFoundError("Connected account not found")
         cred = await session.get(OAuthCredential, account_id)
-        refresh_token = decrypt(cred.encrypted_refresh_token) if cred else None
+        try:
+            refresh_token = decrypt(cred.encrypted_refresh_token) if cred else None
+        except NotConfiguredError:
+            refresh_token = None  # unreadable after a key change: nothing to revoke, just forget it
         # Google revokes the whole grant (this app + this Gmail user), not just one token. If the same
         # mailbox is still connected elsewhere (e.g. moved from another MailPilot user), revoking here
         # would silently break that connection, so only forget our copy of the tokens.
