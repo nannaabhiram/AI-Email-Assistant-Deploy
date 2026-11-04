@@ -14,7 +14,8 @@ from app.security.crypto import decrypt
 log = get_logger(__name__)
 TOKEN_RE = re.compile(r"^\d{5,15}:[A-Za-z0-9_-]{30,64}$")
 TOKEN_KEY, BOT_KEY, CHAT_KEY, CODE_KEY = "telegram_bot_token_enc", "telegram_bot", "telegram_chat_id", "telegram_link_code"
-SECRET_KEYS = frozenset({TOKEN_KEY, CODE_KEY})
+HOOK_SECRET_KEY, HOOK_URL_KEY, STATE_KEY = "telegram_webhook_secret", "telegram_webhook_url", "telegram_state"
+SECRET_KEYS = frozenset({TOKEN_KEY, CODE_KEY, HOOK_SECRET_KEY, HOOK_URL_KEY, STATE_KEY})
 
 
 class TelegramError(Exception):
@@ -71,3 +72,44 @@ async def send_alert(prefs: dict[str, Any], *, title: str, body: str = "", url: 
     except Exception as exc:
         log.warning("telegram_send_failed", detail=str(exc)[:200])
         return False
+
+
+Buttons = list[list[dict[str, str]]]
+
+
+def _payload(chat_id: int | str, text: str, buttons: Buttons | None) -> dict[str, Any]:
+    payload: dict[str, Any] = {"chat_id": chat_id, "text": text[:4096], "parse_mode": "HTML",
+                               "disable_web_page_preview": True}
+    if buttons:
+        payload["reply_markup"] = {"inline_keyboard": buttons}
+    return payload
+
+
+async def send_html(token: str, chat_id: int | str, text: str, buttons: Buttons | None = None) -> int | None:
+    result = await call(token, "sendMessage", _payload(chat_id, text, buttons))
+    return int(result["message_id"]) if isinstance(result, dict) and "message_id" in result else None
+
+
+async def edit_html(token: str, chat_id: int | str, message_id: int, text: str, buttons: Buttons | None = None) -> None:
+    payload = {**_payload(chat_id, text, buttons), "message_id": message_id}
+    if not buttons:
+        payload["reply_markup"] = {"inline_keyboard": []}
+    try:
+        await call(token, "editMessageText", payload)
+    except TelegramError as exc:
+        if "message is not modified" not in str(exc):
+            raise
+
+
+async def answer_callback(token: str, callback_id: str, text: str | None = None) -> None:
+    try:
+        await call(token, "answerCallbackQuery", {"callback_query_id": callback_id, **({"text": text[:190]} if text else {})})
+    except TelegramError:
+        pass  # cosmetic only (spinner on the button)
+
+
+async def typing(token: str, chat_id: int | str) -> None:
+    try:
+        await call(token, "sendChatAction", {"chat_id": chat_id, "action": "typing"})
+    except TelegramError:
+        pass

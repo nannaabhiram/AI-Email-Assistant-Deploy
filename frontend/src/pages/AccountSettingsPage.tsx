@@ -84,7 +84,7 @@ export default function AccountSettingsPage() {
                   {a.last_error && <p className="mt-1 text-xs text-danger">{a.last_error}</p>}
                   {a.sync && (
                     <p className="mt-1 text-xs text-fg-muted">
-                      Sync {a.sync.status} · last success {a.sync.last_successful_sync_at ? relativeTime(a.sync.last_successful_sync_at) : 'never'} · {a.sync.messages_synced} messages
+                      Auto-sync every minute · sync {a.sync.status} · last success {a.sync.last_successful_sync_at ? relativeTime(a.sync.last_successful_sync_at) : 'never'} · {a.sync.messages_synced} messages
                       {a.sync.last_error && <span className="block text-danger">Last error: {a.sync.last_error}</span>}
                     </p>
                   )}

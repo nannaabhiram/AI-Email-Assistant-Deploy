@@ -14,6 +14,7 @@ import { relativeTime } from '@/lib/format'
 import { inferenceState } from '@/lib/types'
 import { MobileTabBar } from './MobileTabBar'
 import { NavigationSidebar } from './NavigationSidebar'
+import { NewMailWatcher } from './NewMailWatcher'
 import { TopNavigation } from './TopNavigation'
 
 function Banner({ tone, icon, children }: { tone: 'warning' | 'danger'; icon: React.ReactNode; children: React.ReactNode }) {
@@ -62,6 +63,7 @@ function Shell() {
 
   return (
     <div className="flex min-h-screen min-h-dvh">
+      <NewMailWatcher />
       <a href="#main" className="sr-only-focusable rounded bg-primary px-3 py-2 text-primary-fg">Skip to content</a>
       <aside className="hidden w-72 shrink-0 p-3 lg:block">
         <div className="mp-glass sticky top-3 h-[calc(100vh-1.5rem)] overflow-hidden rounded-xl">

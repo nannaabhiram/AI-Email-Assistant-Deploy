@@ -7,17 +7,18 @@ import hmac
 import json
 from typing import Any
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 
 from app.config import get_settings
 from app.errors import NotConfiguredError
 
 
-def _fernet() -> Fernet:
-    key = get_settings().token_encryption_key.get_secret_value()
-    if not key:
+def _fernet() -> MultiFernet:
+    """TOKEN_ENCRYPTION_KEY may list several comma-separated keys: the first encrypts, all decrypt (rotation)."""
+    keys = [k.strip() for k in get_settings().token_encryption_key.get_secret_value().split(",") if k.strip()]
+    if not keys:
         raise NotConfiguredError("TOKEN_ENCRYPTION_KEY is not configured", code="encryption_not_configured")
-    return Fernet(key.encode())
+    return MultiFernet([Fernet(k.encode()) for k in keys])
 
 
 def encrypt(value: str) -> str:

@@ -196,3 +196,19 @@ class ContactSummaryOutput(_Strict):
     open_commitments: list[str] = Field(default_factory=list, max_length=10)
     recent_decisions: list[str] = Field(default_factory=list, max_length=10)
     communication_notes: str | None = Field(default=None, max_length=300)
+
+
+class ProfessionalRewriteOutput(_Strict):
+    subject: str | None = Field(default=None, max_length=200, description="Short subject line, or null to keep")
+    body: str = Field(min_length=1, max_length=8000)
+
+
+class AssistantIntentOutput(_Strict):
+    intent: Literal["find", "compose", "reply", "revise", "help", "other"]
+    search_query: str | None = Field(default=None, max_length=300,
+                                     description="For find: what mail to look for, in plain words")
+    recipient: str | None = Field(default=None, max_length=200,
+                                  description="For compose: email address or person/company name to send to")
+    subject_hint: str | None = Field(default=None, max_length=200)
+    message: str | None = Field(default=None, max_length=6000,
+                                description="For compose/reply/revise: what the owner wants to say or change")

@@ -509,7 +509,9 @@ class SettingsOut(ORM):
     @field_validator("notification_prefs")
     @classmethod
     def _hide_secrets(cls, v: dict[str, Any]) -> dict[str, Any]:
-        return {k: val for k, val in (v or {}).items() if k not in {"telegram_bot_token_enc", "telegram_link_code"}}
+        from app.services.telegram import SECRET_KEYS
+
+        return {k: val for k, val in (v or {}).items() if k not in SECRET_KEYS}
     priority_thresholds: dict[str, Any]
     scoring_weights: dict[str, Any]
     review_confidence_threshold: Decimal

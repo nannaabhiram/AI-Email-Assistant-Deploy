@@ -37,7 +37,7 @@ from app.gmail.sync import SyncSkipped, sync_account
 from app.jobs.queue import enqueue
 from app.llm.service import get_llm_service
 from app.logging import get_logger
-from app.services import telegram
+from app.services import telegram, telegram_bot
 from app.services.ntfy import send_ntfy
 from app.services.push import PushTransientError, send_to_user
 from app.services.timezones import briefing_due_date
@@ -234,6 +234,20 @@ async def handle_push_send(payload: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+async def handle_telegram_update(payload: dict[str, Any]) -> dict[str, Any]:
+    try:
+        return await telegram_bot.handle_update(UUID(payload["user_id"]), payload.get("update") or {})
+    except telegram.TelegramError as exc:
+        raise RetryAfter(5, str(exc)) from exc
+
+
+async def handle_telegram_setup(payload: dict[str, Any]) -> dict[str, Any]:
+    try:
+        return {"webhook": await telegram_bot.ensure_webhook(UUID(payload["user_id"]))}
+    except telegram.TelegramError as exc:
+        raise RetryAfter(600, str(exc)) from exc
+
+
 HANDLERS: dict[str, Handler] = {
     "gmail_sync": handle_gmail_sync,
     "analyze_message": handle_analyze,
@@ -245,6 +259,8 @@ HANDLERS: dict[str, Handler] = {
     "send_reminders": handle_reminders,
     "retention_cleanup": handle_retention,
     "push_send": handle_push_send,
+    "telegram_update": handle_telegram_update,
+    "telegram_setup": handle_telegram_setup,
 }
 
 
@@ -273,7 +289,7 @@ async def schedule_periodic_jobs() -> None:
     now = datetime.now(UTC)
     async with system_session() as s:
         # Only accounts not attempted within the configured interval (manual syncs are separate).
-        cutoff = now - timedelta(minutes=max(1, settings.sync_interval_minutes))
+        cutoff = now - timedelta(seconds=max(1, settings.sync_interval_minutes) * 60 - 10)
         accounts = (await s.execute(
             select(ConnectedAccount.id, ConnectedAccount.user_id)
             .join(SyncState, SyncState.account_id == ConnectedAccount.id, isouter=True)
@@ -285,6 +301,9 @@ async def schedule_periodic_jobs() -> None:
                           dedupe_key=f"sync:{account_id}", priority=20)
         await schedule_briefings(s, now)
         await enqueue(s, "send_reminders", {}, dedupe_key="reminders", priority=70)
+        for uid in await telegram_bot.users_needing_webhook():
+            await enqueue(s, "telegram_setup", {"user_id": str(uid)}, user_id=uid,
+                          dedupe_key=f"tg-setup:{uid}", priority=30, max_attempts=3)
         ran_today = (await s.execute(text(
             "select 1 from public.jobs where job_type = 'retention_cleanup' and dedupe_key = :k and status = 'succeeded'"),
             {"k": f"retention:{now.date()}"})).first()

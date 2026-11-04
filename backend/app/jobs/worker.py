@@ -14,6 +14,8 @@ import socket
 import time
 from datetime import UTC, datetime
 
+import httpx
+
 from app.config import get_settings
 from app.db.models import Job
 from app.db.session import dispose_engine, system_session
@@ -38,6 +40,7 @@ class Worker:
         self._stop = asyncio.Event()
         self._inflight: set[asyncio.Task[None]] = set()
         self._last_schedule = 0.0
+        self._last_keepalive = 0.0
 
     def stop(self) -> None:
         log.info("worker_stopping")
@@ -74,6 +77,17 @@ class Worker:
             log.warning("job_failed", job_id=job.id, job_type=job.job_type, attempt=job.attempts,
                         next_status=status.value, error_type=type(exc).__name__)
 
+    async def _maybe_keepalive(self) -> None:
+        url = self.settings.keepalive_url.strip().rstrip("/")
+        if not url.startswith("https://") or time.monotonic() - self._last_keepalive < self.settings.keepalive_interval_seconds:
+            return
+        self._last_keepalive = time.monotonic()
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                await client.get(f"{url}/health")
+        except httpx.HTTPError as exc:
+            log.info("keepalive_failed", error_type=type(exc).__name__)
+
     async def _maybe_schedule(self) -> None:
         interval = 60 * max(1, self.settings.sync_interval_minutes)
         if time.monotonic() - self._last_schedule >= min(interval, 60):
@@ -87,6 +101,7 @@ class Worker:
         log.info("worker_started", worker_id=self.worker_id, concurrency=self.concurrency)
         while not self._stop.is_set():
             await self._maybe_schedule()
+            await self._maybe_keepalive()
             capacity = self.concurrency - len(self._inflight)
             jobs: list[Job] = []
             if capacity > 0:

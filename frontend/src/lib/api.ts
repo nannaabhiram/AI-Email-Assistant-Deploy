@@ -13,6 +13,7 @@ import type {
   Briefing,
   Commitment,
   ComposeSendResult,
+  PolishResult,
   ConnectedAccount,
   Contact,
   ContactDetail,
@@ -180,6 +181,8 @@ export const api = {
   composeSend: (body: { to: string[]; cc: string[]; bcc: string[]; subject: string; body: string; undo_seconds: number }) =>
     request<ComposeSendResult>('POST', '/api/v1/compose/send', body),
   undoSend: (approvalId: string) => request<Draft>('POST', `/api/v1/compose/${approvalId}/undo`),
+  polishText: (body: { body: string; subject: string; recipient_name?: string | null; previous?: string | null; feedback?: string | null }) =>
+    request<PolishResult>('POST', '/api/v1/compose/polish', body),
   recipients: (q: string, signal?: AbortSignal) =>
     request<{ items: RecipientSuggestion[]; total: number }>('GET', '/api/v1/compose/recipients', undefined, { q, limit: 8 }, signal),
 

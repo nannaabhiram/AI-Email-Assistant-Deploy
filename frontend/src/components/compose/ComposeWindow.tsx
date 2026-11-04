@@ -1,9 +1,10 @@
-import { ChevronDown, Maximize2, Minimize2, Send, ShieldAlert, Trash2, X } from 'lucide-react'
+import { ChevronDown, Maximize2, Minimize2, Send, ShieldAlert, Sparkles, Trash2, Undo2, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { api, ApiError, errorMessage } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { isValidEmail } from '@/lib/recipients'
+import type { PolishResult } from '@/lib/types'
 import type { ComposeDraft, ComposeMode } from './draft'
 import { RecipientInput } from './RecipientInput'
 
@@ -22,6 +23,9 @@ export function ComposeWindow({ draft, onChange, mode, onModeChange, onClose, on
   const [needsPermission, setNeedsPermission] = useState(false)
   const [subjectWarned, setSubjectWarned] = useState(false)
   const [sending, setSending] = useState(false)
+  const [polishing, setPolishing] = useState(false)
+  const [suggestion, setSuggestion] = useState<PolishResult | null>(null)
+  const [original, setOriginal] = useState<{ body: string; subject: string } | null>(null)
   const toInput = useRef<HTMLInputElement>(null)
   // Latest content, updated synchronously, so Send sees an address committed in the same keystroke or blur.
   const latest = useRef(draft)
@@ -58,6 +62,40 @@ export function ComposeWindow({ draft, onChange, mode, onModeChange, onClose, on
     } finally {
       setSending(false)
     }
+  }
+
+  const convert = async (previous?: string) => {
+    const current = latest.current
+    if (!current.body.trim()) return setError('Type your message first, in your own words. Then convert it.')
+    setError(null)
+    setPolishing(true)
+    try {
+      const first = current.to[0]
+      setSuggestion(await api.polishText({
+        body: current.body, subject: current.subject, previous: previous ?? null,
+        recipient_name: first?.name ?? null,
+      }))
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setPolishing(false)
+    }
+  }
+
+  const useSuggestion = () => {
+    if (!suggestion) return
+    const current = latest.current
+    setOriginal({ body: current.body, subject: current.subject })
+    latest.current = { ...current, body: suggestion.body, subject: current.subject.trim() ? current.subject : suggestion.subject }
+    onChange(latest.current)
+    setSuggestion(null)
+  }
+
+  const restoreOriginal = () => {
+    if (!original) return
+    latest.current = { ...latest.current, ...original }
+    onChange(latest.current)
+    setOriginal(null)
   }
 
   const grantSend = async () => {
@@ -121,8 +159,23 @@ export function ComposeWindow({ draft, onChange, mode, onModeChange, onClose, on
                 className="w-full bg-transparent py-1.5 text-base text-fg outline-none placeholder:text-fg-subtle sm:text-sm"
                 value={draft.subject} onChange={(e) => { set('subject', e.target.value); setSubjectWarned(false) }} />
             </div>
-            <textarea aria-label="Message" className="mp-compose__text" value={draft.body} maxLength={100_000}
-              onChange={(e) => set('body', e.target.value)} />
+            {suggestion ? (
+              <div className="mp-polish" role="region" aria-label="Professional version">
+                <p className="mp-polish__label"><Sparkles className="h-4 w-4" aria-hidden /> Professional version</p>
+                {!draft.subject.trim() && suggestion.subject && <p className="mp-polish__subject">Subject: {suggestion.subject}</p>}
+                <div className="mp-polish__text">{suggestion.body}</div>
+                {suggestion.notice && <p className="mp-polish__notice">{suggestion.notice}</p>}
+                <div className="mp-polish__actions">
+                  <Button size="sm" onClick={useSuggestion}>Use this</Button>
+                  <Button size="sm" variant="secondary" loading={polishing} onClick={() => void convert(suggestion.body)}>Try another</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setSuggestion(null)}>Keep mine</Button>
+                </div>
+              </div>
+            ) : (
+              <textarea aria-label="Message" className="mp-compose__text" value={draft.body} maxLength={100_000}
+                placeholder="Write in your own words. Then press Convert to professional."
+                onChange={(e) => { set('body', e.target.value); setOriginal(null) }} />
+            )}
 
             {needsPermission && (
               <div role="alert" className="mx-3 mb-2 flex flex-wrap items-center gap-2 rounded-md bg-warning-soft px-3 py-2 text-sm text-warning">
@@ -135,7 +188,17 @@ export function ComposeWindow({ draft, onChange, mode, onModeChange, onClose, on
 
             <footer className="mp-compose__foot">
               <Button loading={sending} onClick={() => void send()} leftIcon={<Send className="h-4 w-4" aria-hidden />} className="px-5">Send</Button>
-              <span className="hidden text-xs text-fg-subtle sm:inline">Ctrl + Enter</span>
+              {!suggestion && (
+                <Button variant="secondary" loading={polishing} onClick={() => void convert()}
+                  leftIcon={<Sparkles className="h-4 w-4" aria-hidden />} title="Rewrite your text as a polished, professional email">
+                  <span className="max-sm:hidden">Convert to professional</span><span className="sm:hidden">Professional</span>
+                </Button>
+              )}
+              {original && !suggestion && (
+                <button type="button" className="mp-compose__icon" aria-label="Undo conversion" title="Back to my original text" onClick={restoreOriginal}>
+                  <Undo2 className="h-4 w-4" aria-hidden />
+                </button>
+              )}
               <button type="button" className="mp-compose__icon ml-auto" aria-label="Discard draft" onClick={onDiscard}>
                 <Trash2 className="h-4 w-4" aria-hidden />
               </button>

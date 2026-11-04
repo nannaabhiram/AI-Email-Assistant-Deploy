@@ -9,6 +9,8 @@ export interface ToastMessage {
   tone: ToastTone
   title: string
   description?: string
+  action?: { label: string; onClick: () => void }
+  durationMs?: number
 }
 
 interface ToastApi {
@@ -38,6 +40,12 @@ export function Toast({ toast, onDismiss }: { toast: ToastMessage; onDismiss: ()
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-fg">{toast.title}</p>
         {toast.description && <p className="mt-0.5 text-sm break-words text-fg-muted">{toast.description}</p>}
+        {toast.action && (
+          <button type="button" className="mt-1.5 text-sm font-semibold text-primary hover:underline"
+            onClick={() => { toast.action?.onClick(); onDismiss() }}>
+            {toast.action.label}
+          </button>
+        )}
       </div>
       <button type="button" onClick={onDismiss} className="rounded p-0.5 text-fg-subtle hover:text-fg" aria-label="Dismiss notification">
         <X className="h-4 w-4" aria-hidden />
@@ -54,7 +62,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     (toast: Omit<ToastMessage, 'id'>) => {
       const id = nextId.current++
       setToasts((t) => [...t.slice(-3), { ...toast, id }])
-      window.setTimeout(() => dismiss(id), toast.tone === 'error' ? 9000 : 5000)
+      window.setTimeout(() => dismiss(id), toast.durationMs ?? (toast.tone === 'error' ? 9000 : 5000))
     },
     [dismiss],
   )

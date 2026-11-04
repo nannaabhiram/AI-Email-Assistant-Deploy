@@ -58,6 +58,7 @@ export default function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/inbox" element={<InboxPage />} />
             <Route path="/inbox/:id" element={<EmailDetailPage />} />
+            <Route path="/emails/:id" element={<EmailDetailPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/tasks" element={<TasksPage />} />
             <Route path="/drafts" element={<DraftsPage />} />

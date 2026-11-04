@@ -24,3 +24,26 @@
 - **Send** (or Ctrl/Cmd + Enter) sends from your connected Gmail after a 10-second undo window. Press **Undo** in that window to reopen the message unsent. Sent mail is recorded under Approvals for audit; it does not wait for approval because you sent it yourself.
 - Closing the window keeps the draft on this device; Compose reopens it. The trash icon discards it.
 - Sending needs the Gmail send permission. If it is missing, the window offers **Grant permission** and keeps your message.
+
+## Telegram mail assistant
+
+Once your own bot is connected (Preferences → Phone alerts), chat with it in plain words:
+
+- "show me the mail from Infosys" / "any mail about my offer letter?" — finds the mail and explains it
+  (sender, date, what it is about, what to do, the mail text). Tap **Reply** to answer it.
+- "send mail to rahul@gmail.com saying i will come tomorrow 10am" — MailPilot rewrites your words into a
+  professional email and shows a preview with **Approve & send**, **Rewrite**, **Change…** and **Delete**.
+  Nothing is sent until you approve, and **Undo** works for 10 seconds after.
+
+Only internship/job offers, selections and interview calls are pushed to Telegram on their own.
+
+## Convert to professional (website)
+
+In Compose, type the message in your own words and press **Convert to professional**. Review the
+polished version, then **Use this**, **Try another** or **Keep mine**. The undo arrow restores your text.
+
+## Automatic sync
+
+New mail syncs every minute without pressing anything, and the site pops up "New message from …".
+On Render the worker pings the service's own URL (RENDER_EXTERNAL_URL) every 10 minutes so the free
+instance does not fall asleep. **Sync now** / **Full resync** remain for manual use.

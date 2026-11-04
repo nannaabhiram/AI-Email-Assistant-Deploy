@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import urlparse
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 # Always backend/.env, whatever the process's working directory is.
@@ -56,7 +56,11 @@ class Settings(BaseSettings):
     google_oauth_revoke_url: str = "https://oauth2.googleapis.com/revoke"
     gmail_max_retries: int = 5
     gmail_fetch_concurrency: int = 4
-    sync_interval_minutes: int = 10
+    sync_interval_minutes: int = 1  # incremental (history API) sync: one cheap call per account per minute
+    # Free hosts (Render) sleep after ~15 idle minutes, which stops the worker. When set (Render sets
+    # RENDER_EXTERNAL_URL itself), the worker pings this public URL so new mail keeps syncing.
+    keepalive_url: str = Field(default="", validation_alias=AliasChoices("KEEPALIVE_URL", "RENDER_EXTERNAL_URL"))
+    keepalive_interval_seconds: int = 600
 
     # --- Mobile push (Firebase Cloud Messaging HTTP v1, free) ---------------
     push_enabled: bool = True
@@ -110,6 +114,9 @@ class Settings(BaseSettings):
     worker_concurrency: int = 4
     worker_poll_interval: float = 2.0
     worker_lease_seconds: int = 300
+
+    # --- Telegram mail assistant ------------------------------------------------
+    telegram_assistant_enabled: bool = True
     approval_ttl_hours: int = 24
 
     @field_validator("cors_origins", mode="before")

@@ -209,36 +209,51 @@ class TokenManager:
             cred = await session.get(OAuthCredential, self.account_id, with_for_update=True)
             if cred is None:
                 raise GmailAuthError("No stored credentials for this account")
-            if (
-                not force_refresh
-                and cred.encrypted_access_token
-                and cred.access_token_expires_at
-                and cred.access_token_expires_at > now + timedelta(seconds=30)
-            ):
-                token = decrypt(cred.encrypted_access_token)
-                self._cached = (token, cred.access_token_expires_at)
-                return token
             try:
-                tokens = await _token_request(
-                    {"grant_type": "refresh_token", "refresh_token": decrypt(cred.encrypted_refresh_token)},
-                    self._http,
-                )
-            except GmailAuthError:
+                return await self._token(session, cred, now, force_refresh)
+            except NotConfiguredError as exc:
+                if exc.code != "decrypt_failed":
+                    raise
+                # Saved with a different TOKEN_ENCRYPTION_KEY: only a fresh Google sign-in can fix it.
+                msg = "Saved Google sign-in can't be read (the encryption key changed). Reconnect this account."
                 await session.execute(
-                    update(ConnectedAccount)
-                    .where(ConnectedAccount.id == self.account_id)
-                    .values(status=AccountStatus.needs_reauth, last_error="Google access was revoked or expired")
+                    update(ConnectedAccount).where(ConnectedAccount.id == self.account_id)
+                    .values(status=AccountStatus.needs_reauth, last_error=msg)
                 )
                 await session.commit()
-                raise
-            token = tokens["access_token"]
-            expires_at = now + timedelta(seconds=int(tokens.get("expires_in", 3600)) - 60)
-            cred.encrypted_access_token = encrypt(token)
-            cred.access_token_expires_at = expires_at
-            if tokens.get("refresh_token"):
-                cred.encrypted_refresh_token = encrypt(tokens["refresh_token"])
-            self._cached = (token, expires_at)
+                raise GmailAuthError(msg) from exc
+
+    async def _token(self, session: AsyncSession, cred: OAuthCredential, now: datetime, force_refresh: bool) -> str:
+        if (
+            not force_refresh
+            and cred.encrypted_access_token
+            and cred.access_token_expires_at
+            and cred.access_token_expires_at > now + timedelta(seconds=30)
+        ):
+            token = decrypt(cred.encrypted_access_token)
+            self._cached = (token, cred.access_token_expires_at)
             return token
+        try:
+            tokens = await _token_request(
+                {"grant_type": "refresh_token", "refresh_token": decrypt(cred.encrypted_refresh_token)},
+                self._http,
+            )
+        except GmailAuthError:
+            await session.execute(
+                update(ConnectedAccount)
+                .where(ConnectedAccount.id == self.account_id)
+                .values(status=AccountStatus.needs_reauth, last_error="Google access was revoked or expired")
+            )
+            await session.commit()
+            raise
+        token = tokens["access_token"]
+        expires_at = now + timedelta(seconds=int(tokens.get("expires_in", 3600)) - 60)
+        cred.encrypted_access_token = encrypt(token)
+        cred.access_token_expires_at = expires_at
+        if tokens.get("refresh_token"):
+            cred.encrypted_refresh_token = encrypt(tokens["refresh_token"])
+        self._cached = (token, expires_at)
+        return token
 
 
 async def gmail_client_for(account_id: UUID, http: httpx.AsyncClient | None = None) -> GmailClient:

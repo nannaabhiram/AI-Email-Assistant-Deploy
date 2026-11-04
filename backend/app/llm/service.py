@@ -124,6 +124,7 @@ class LLMService:
         output_model: type[T],
         user_id: UUID | None = None,
         max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> tuple[T, LLMMeta]:
         if self.provider is None:
             raise LLMNotConfiguredError("Remote inference is not configured")
@@ -154,7 +155,8 @@ class LLMService:
                     try:
                         result = await self.provider.complete(
                             messages, json_schema=schema, schema_name=task, max_tokens=max_tokens,
-                            temperature=self.settings.llm_temperature, request_id=request_id,
+                            temperature=self.settings.llm_temperature if temperature is None else temperature,
+                            request_id=request_id,
                         )
                         self._record_outcome(reachable=True)
                         output_chars = len(result.text)

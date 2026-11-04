@@ -618,3 +618,10 @@ export interface ComposeSendResult {
   state: ApprovalState
   send_at: string
 }
+
+export interface PolishResult {
+  subject: string
+  body: string
+  source: 'llm' | 'rules'
+  notice: string | null
+}

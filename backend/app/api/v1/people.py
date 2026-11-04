@@ -57,12 +57,15 @@ from app.db.models import (
 from app.db.session import system_session, user_session
 from app.errors import AppError, ConflictError, NotFoundError, ServiceUnavailableError
 from app.gmail.client import SCOPE_MODIFY, SCOPE_SEND
+from app.logging import get_logger
 from app.security.crypto import encrypt
-from app.services import telegram
+from app.services import telegram, telegram_bot
 from app.services.audit import record_audit
 from app.services.ntfy import NtfyError, new_topic, publish, subscribe_url
+from app.services.telegram_bot import ensure_webhook
 from app.services.timezones import canonical_timezone
 
+log = get_logger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["people & settings"])
 
 
@@ -261,7 +264,8 @@ async def set_telegram_bot(body: TelegramBotIn, user: SensitiveUserDep) -> Phone
     code = secrets.token_hex(8)
     return _phone_out(await _set_phone_prefs(user.id, {
         telegram.TOKEN_KEY: encrypt(token), telegram.BOT_KEY: me["username"], telegram.CODE_KEY: code,
-        telegram.CHAT_KEY: None, "phone_alerts": True}))
+        telegram.CHAT_KEY: None, telegram.HOOK_URL_KEY: None, telegram.HOOK_SECRET_KEY: None,
+        telegram.STATE_KEY: None, "phone_alerts": True}))
 
 
 @router.post("/settings/phone-alerts/telegram/verify", response_model=PhoneAlertsOut)
@@ -280,13 +284,27 @@ async def verify_telegram(user: CurrentUserDep) -> PhoneAlertsOut:
                                     body="Internship and job offers, selections and interview calls will alert you here.")
     except telegram.TelegramError as exc:
         raise ServiceUnavailableError(str(exc), code="telegram_unavailable") from exc
-    return _phone_out(await _set_phone_prefs(user.id, {telegram.CHAT_KEY: chat_id, telegram.CODE_KEY: None}))
+    prefs = await _set_phone_prefs(user.id, {telegram.CHAT_KEY: chat_id, telegram.CODE_KEY: None})
+    try:
+        if await ensure_webhook(user.id):
+            await telegram.send_html(token, chat_id, telegram_bot.HELP)
+    except telegram.TelegramError as exc:  # alerts still work; the worker retries the assistant setup
+        log.warning("telegram_webhook_failed", detail=str(exc)[:200])
+    return _phone_out(prefs)
 
 
 @router.delete("/settings/phone-alerts/telegram", response_model=PhoneAlertsOut)
 async def remove_telegram_bot(user: CurrentUserDep) -> PhoneAlertsOut:
+    async with user_session(user.id) as s:
+        settings = await s.get(UserSettings, user.id)
+    try:
+        if token := telegram.token_from((settings.notification_prefs if settings else None) or {}):
+            await telegram.call(token, "deleteWebhook")
+    except Exception as exc:  # best effort: the bot may be deleted or the key rotated
+        log.info("telegram_delete_webhook_failed", error_type=type(exc).__name__)
     return _phone_out(await _set_phone_prefs(user.id, {
-        telegram.TOKEN_KEY: None, telegram.BOT_KEY: None, telegram.CHAT_KEY: None, telegram.CODE_KEY: None}))
+        telegram.TOKEN_KEY: None, telegram.BOT_KEY: None, telegram.CHAT_KEY: None, telegram.CODE_KEY: None,
+        telegram.HOOK_URL_KEY: None, telegram.HOOK_SECRET_KEY: None, telegram.STATE_KEY: None}))
 
 
 @router.post("/settings/phone-alerts/test", status_code=204)

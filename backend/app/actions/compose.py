@@ -69,6 +69,7 @@ async def _pick_account(s: Any, user_id: UUID, account_id: UUID | None) -> Conne
 async def send_composed(
     user_id: UUID, *, to: list[str], cc: list[str], bcc: list[str], subject: str, body: str,
     undo_seconds: int = UNDO_DEFAULT, account_id: UUID | None = None,
+    thread_id: UUID | None = None, reply_to_message_id: UUID | None = None, event: str = "compose.send_scheduled",
 ) -> ComposeResult:
     to, cc, bcc = validate_addresses(to, "To"), validate_addresses(cc, "Cc"), validate_addresses(bcc, "Bcc")
     if not (to or cc or bcc):
@@ -86,7 +87,8 @@ async def send_composed(
             raise PermissionUpgradeRequired("Sending requires granting Gmail send permission",
                                             details={"scope_set": "send", "account_id": str(account.id)})
         draft = Draft(user_id=user_id, account_id=account.id, to_addresses=to, cc_addresses=cc, bcc_addresses=bcc,
-                      subject=subject, body=body, source="user", status=DraftStatus.approved)
+                      subject=subject, body=body, source="user", status=DraftStatus.approved,
+                      thread_id=thread_id, reply_to_message_id=reply_to_message_id)
         s.add(draft)
         await s.flush()
         params = await _send_params(s, draft, account)
@@ -109,7 +111,7 @@ async def send_composed(
         send_at = now + timedelta(seconds=undo)
         await enqueue(s, "execute_action", {"approval_id": str(approval.id)}, user_id=user_id,
                       dedupe_key=f"execute:{approval.id}", priority=1, max_attempts=3, run_at=send_at)
-        record_audit(s, user_id=user_id, event="compose.send_scheduled", entity_type="action_approval",
+        record_audit(s, user_id=user_id, event=event, entity_type="action_approval",
                      entity_id=approval.id, details={"draft_id": str(draft.id), "recipients": len(everyone),
                                                      "undo_seconds": undo})
         await s.flush()
