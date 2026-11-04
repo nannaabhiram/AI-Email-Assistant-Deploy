@@ -28,6 +28,7 @@ from app.api.schemas import (
     JobOut,
     NotificationOut,
     Page,
+    PhoneAlertsOut,
     ProfileOut,
     ProfileUpdateIn,
     SettingsOut,
@@ -55,6 +56,7 @@ from app.db.session import system_session, user_session
 from app.errors import AppError, ConflictError, NotFoundError, ServiceUnavailableError
 from app.gmail.client import SCOPE_MODIFY, SCOPE_SEND
 from app.services.audit import record_audit
+from app.services.ntfy import new_topic, send_ntfy, subscribe_url
 from app.services.timezones import canonical_timezone
 
 router = APIRouter(prefix="/api/v1", tags=["people & settings"])
@@ -181,6 +183,10 @@ async def update_settings(body: SettingsUpdateIn, user: CurrentUserDep) -> Setti
     if not values:
         raise AppError("No changes supplied", code="no_changes")
     async with user_session(user.id) as s:
+        if "notification_prefs" in values:  # merge so toggles never wipe the phone-alert topic
+            current = await s.get(UserSettings, user.id)
+            values["notification_prefs"] = {**((current.notification_prefs if current else None) or {}),
+                                            **values["notification_prefs"]}
         res = await s.execute(update(UserSettings).where(UserSettings.user_id == user.id,
                                                          UserSettings.version == body.version)
                               .values(**values).returning(UserSettings.user_id))
@@ -192,6 +198,59 @@ async def update_settings(body: SettingsUpdateIn, user: CurrentUserDep) -> Setti
     async with system_session() as s:
         record_audit(s, user_id=user.id, event="settings.updated", details={"fields": sorted(values)})
     return out
+
+
+# --- Phone alerts (ntfy) ----------------------------------------------------------------
+async def _set_phone_prefs(user_id: UUID, changes: dict[str, Any]) -> dict[str, Any]:
+    async with system_session() as s:
+        settings = await s.get(UserSettings, user_id)
+        if settings is None:
+            raise NotFoundError("Settings not found")
+        prefs = {**(settings.notification_prefs or {}), **changes}
+        prefs = {k: v for k, v in prefs.items() if v is not None}
+        await s.execute(update(UserSettings).where(UserSettings.user_id == user_id).values(
+            notification_prefs=prefs, version=UserSettings.version + 1))
+        record_audit(s, user_id=user_id, event="settings.phone_alerts", details={"enabled": bool(prefs.get("ntfy_topic"))})
+    return prefs
+
+
+def _phone_out(prefs: dict[str, Any]) -> PhoneAlertsOut:
+    topic = prefs.get("ntfy_topic")
+    return PhoneAlertsOut(enabled=bool(topic) and prefs.get("phone_alerts", True) is not False, topic=topic,
+                          subscribe_url=subscribe_url(topic) if topic else None)
+
+
+@router.get("/settings/phone-alerts", response_model=PhoneAlertsOut)
+async def get_phone_alerts(user: CurrentUserDep) -> PhoneAlertsOut:
+    async with user_session(user.id) as s:
+        settings = await s.get(UserSettings, user.id)
+    return _phone_out((settings.notification_prefs if settings else None) or {})
+
+
+@router.post("/settings/phone-alerts", response_model=PhoneAlertsOut)
+async def enable_phone_alerts(user: CurrentUserDep, rotate: bool = False) -> PhoneAlertsOut:
+    async with user_session(user.id) as s:
+        settings = await s.get(UserSettings, user.id)
+    topic = None if rotate else ((settings.notification_prefs if settings else None) or {}).get("ntfy_topic")
+    return _phone_out(await _set_phone_prefs(user.id, {"ntfy_topic": topic or new_topic(), "phone_alerts": True}))
+
+
+@router.delete("/settings/phone-alerts", response_model=PhoneAlertsOut)
+async def disable_phone_alerts(user: CurrentUserDep) -> PhoneAlertsOut:
+    return _phone_out(await _set_phone_prefs(user.id, {"ntfy_topic": None, "phone_alerts": False}))
+
+
+@router.post("/settings/phone-alerts/test", status_code=204)
+async def test_phone_alert(user: SensitiveUserDep) -> None:
+    async with user_session(user.id) as s:
+        settings = await s.get(UserSettings, user.id)
+    topic = ((settings.notification_prefs if settings else None) or {}).get("ntfy_topic")
+    if not topic:
+        raise AppError("Enable phone alerts first", code="phone_alerts_disabled")
+    if not await send_ntfy(topic, title="MailPilot test alert",
+                           body="Phone alerts work. Offers and interview calls will arrive here.",
+                           click_url=get_settings().frontend_url, priority=4, tags="white_check_mark"):
+        raise ServiceUnavailableError("Could not reach the push service", code="push_unavailable")
 
 
 @router.get("/me", response_model=ProfileOut)

@@ -37,6 +37,7 @@ from app.gmail.sync import SyncSkipped, sync_account
 from app.jobs.queue import enqueue
 from app.llm.service import get_llm_service
 from app.logging import get_logger
+from app.services.ntfy import send_ntfy
 from app.services.push import PushTransientError, send_to_user
 from app.services.timezones import briefing_due_date
 
@@ -190,13 +191,42 @@ async def handle_retention(_: dict[str, Any]) -> dict[str, Any]:
     return dict(result)
 
 
+async def _send_ntfy_alert(payload: dict[str, Any]) -> bool:
+    """Free phone channel (ntfy app) for users who set a topic; works before the mobile app is installed."""
+    async with system_session() as s:
+        us = await s.get(UserSettings, UUID(payload["user_id"]))
+    prefs = (us.notification_prefs if us else None) or {}
+    topic = prefs.get("ntfy_topic")
+    if not topic or prefs.get("phone_alerts") is False:
+        return False
+    link = payload.get("link")
+    click = f"{get_settings().frontend_url.rstrip('/')}{link}" if link else get_settings().frontend_url
+    important = payload.get("kind") == "important"
+    return await send_ntfy(topic, title=payload["title"], body=payload.get("body") or "", click_url=click,
+                           priority=5 if payload.get("priority", "high") == "high" else 3,
+                           tags="briefcase,tada" if important else "envelope")
+
+
 async def handle_push_send(payload: dict[str, Any]) -> dict[str, Any]:
+    ntfy_sent = False
+    if not payload.get("ntfy_done"):
+        ntfy_sent = await _send_ntfy_alert(payload)
     data = {"notification_id": payload.get("notification_id"), "link": payload.get("link"), "kind": payload.get("kind")}
     try:
-        return await send_to_user(UUID(payload["user_id"]), title=payload["title"], body=payload.get("body"),
-                                  data=data, priority=payload.get("priority", "high"))
+        result = await send_to_user(UUID(payload["user_id"]), title=payload["title"], body=payload.get("body"),
+                                    data=data, priority=payload.get("priority", "high"))
     except PushTransientError as exc:
+        if ntfy_sent:  # retry FCM only, without a duplicate ntfy alert
+            async with system_session() as s:
+                await enqueue(s, "push_send", {**payload, "ntfy_done": True},
+                              user_id=UUID(payload["user_id"]),
+                              dedupe_key=f"push-retry:{payload.get('notification_id')}", priority=10,
+                              run_at=datetime.now(UTC) + timedelta(seconds=30), max_attempts=6)
+            return {"sent": 0, "disabled": 0, "requeued": True}
         raise RetryAfter(30, str(exc)) from exc
+    if ntfy_sent:
+        log.info("ntfy_sent", notification_id=payload.get("notification_id"))
+    return result
 
 
 HANDLERS: dict[str, Handler] = {

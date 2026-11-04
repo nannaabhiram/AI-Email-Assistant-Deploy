@@ -25,6 +25,7 @@ export const keys = {
   contact: (id: string) => ['contact', id] as const,
   analytics: (d: number) => ['analytics', d] as const,
   settings: ['settings'] as const,
+  phoneAlerts: ['phone-alerts'] as const,
   notifications: ['notifications'] as const,
   audit: (o: number) => ['audit', o] as const,
   jobs: ['jobs'] as const,

@@ -40,6 +40,7 @@ from app.llm.prompts import ANALYSIS_SYSTEM, PROMPT_VERSION
 from app.llm.schemas import EmailAnalysisOutput
 from app.llm.service import LLMService, get_llm_service
 from app.logging import get_logger
+from app.services.notify import notify
 
 log = get_logger(__name__)
 
@@ -48,6 +49,9 @@ _COMMIT_RE = re.compile(
     r"[^.!?\n]{5,200}[.!?]?)",
     re.I,
 )
+
+
+CAREER_ALERT_MAX_AGE = timedelta(days=3)  # older mail (initial backfill) is prioritised but not pushed
 
 
 @dataclass(slots=True)
@@ -260,6 +264,9 @@ async def analyze_message(message_id: UUID, llm: LLMService | None = None, use_l
         risk_level = "medium"
 
     is_newsletter = features.is_newsletter or bool(out and out.is_newsletter)
+    is_career = not msg.is_sent and (
+        features.is_career_opportunity or bool(out and out.category == "career" and not is_newsletter)
+    )
     action_required = bool(out.action_required) if out else features.action_required
     reply_needed = bool(out.reply_needed) if out else features.reply_needed
     confidence = float(out.confidence) if out else (0.75 if is_newsletter or features.is_notification else 0.55)
@@ -272,7 +279,7 @@ async def analyze_message(message_id: UUID, llm: LLMService | None = None, use_l
         llm_priority=out.priority if out else None,
         priority_floor=prefs.priority_floor if prefs else None,
         priority_ceiling=prefs.priority_ceiling if prefs else None,
-        muted=bool(prefs and prefs.muted), is_newsletter=is_newsletter,
+        muted=bool(prefs and prefs.muted), is_newsletter=is_newsletter, is_career_opportunity=is_career,
     )
     priority = "LOW" if msg.is_sent else decision.priority
 
@@ -332,7 +339,7 @@ async def analyze_message(message_id: UUID, llm: LLMService | None = None, use_l
         suggested_action=(out.suggested_next_action if out else None),
         deadline_at=deadline_at, deadline_timezone=deadline_tz, deadline_text=deadline_text,
         deadline_type=deadline_type, entities=entities,
-        category="sent" if msg.is_sent else (out.category if out else features.category),
+        category="sent" if msg.is_sent else ("career" if is_career else out.category if out else features.category),
         is_newsletter=is_newsletter, is_notification=features.is_notification or bool(out and out.is_notification),
         duplicate_of=duplicate_of, escalation_reason=None if msg.is_sent else decision.escalation_reason,
         risk_level=risk_level, risk_flags=flags, analyzed_at=now,
@@ -344,7 +351,17 @@ async def analyze_message(message_id: UUID, llm: LLMService | None = None, use_l
             is_security_alert=False, is_incident=False, risk_level="none", confidence=1, review_threshold=0,
         ).score
 
+    alert_career = False
     async with system_session() as session:
+        previous_reason = (await session.execute(
+            select(EmailAnalysis.escalation_reason).where(EmailAnalysis.message_id == msg.id)
+        )).scalar_one_or_none()
+        alert_career = (
+            record["escalation_reason"] == "career_opportunity"
+            and previous_reason != "career_opportunity"
+            and msg.internal_date is not None
+            and now - msg.internal_date <= CAREER_ALERT_MAX_AGE
+        )
         stmt = pg_insert(EmailAnalysis).values(**record)
         await session.execute(
             stmt.on_conflict_do_update(
@@ -395,5 +412,11 @@ async def analyze_message(message_id: UUID, llm: LLMService | None = None, use_l
                 analysis_status=AnalysisStatus.queued if llm_pending else AnalysisStatus.done
             )
         )
+        if alert_career:
+            sender = msg.from_name or msg.from_address
+            await notify(session, msg.user_id, kind="important",
+                         title=f"Career: {(msg.subject or '(no subject)')[:150]}",
+                         body=f"From {sender}" if sender else "Open MailPilot to review",
+                         link=f"/emails/{msg.id}", dedupe_key=f"important:{msg.id}", push=True)
     return AnalysisOutcome(message_id=msg.id, source=source, priority=priority, llm_pending=llm_pending,
                            llm_error=llm_error)

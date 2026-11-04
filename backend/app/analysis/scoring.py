@@ -1,7 +1,7 @@
 """Configurable priority scoring and escalation rules.
 
 score = sum(weight_i * component_i) over deadline, action, impact, sender, context.
-Escalations guarantee that security alerts, critical incidents, high phishing risk and
+Escalations guarantee that internship/job offers and interview calls, security alerts, critical incidents, high phishing risk and
 imminent deadlines with a required action are never downgraded by a low numeric score.
 """
 
@@ -13,6 +13,7 @@ from typing import Any
 
 DEFAULT_WEIGHTS = {"deadline": 0.30, "action": 0.25, "impact": 0.20, "sender": 0.15, "context": 0.10}
 DEFAULT_THRESHOLDS = {"high": 70, "medium": 40}
+CAREER_MIN_SCORE = 95
 _ORDER = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
 
 LLM_COMPONENT_MAP = {
@@ -87,6 +88,7 @@ def decide_priority(
     priority_ceiling: str | None = None,
     muted: bool = False,
     is_newsletter: bool = False,
+    is_career_opportunity: bool = False,
 ) -> PriorityDecision:
     score = compute_score(components, weights)
     priority = level_for(score, thresholds)
@@ -108,6 +110,8 @@ def decide_priority(
         priority = max_level(priority, priority_floor)
 
     # Non-negotiable escalations (applied last so preferences cannot suppress them).
+    if is_career_opportunity:
+        priority, reason, score = "HIGH", "career_opportunity", max(score, CAREER_MIN_SCORE)
     if is_security_alert:
         priority, reason = "HIGH", "security_alert"
     if is_incident:

@@ -42,6 +42,30 @@ _INCIDENT = re.compile(
     r"system down|major incident)\b",
     re.I,
 )
+# Offers and selections are always top priority, even from bulk ATS senders.
+_CAREER_OFFER = re.compile(
+    r"\b(offer letter|letter of offer|internship offer|job offer|employment offer|offer of (?:employment|internship)|"
+    r"appointment letter|letter of (?:intent|appointment)|(?:pleased|happy|delighted|excited) to (?:extend|offer)|"
+    r"extend (?:an|the|this) offer|you(?:'ve| have) been (?:selected|hired|accepted)|(?:selected|accepted) for the "
+    r"(?:\w+ ){0,3}(?:internship|position|role|program(?:me)?)|confirmation of (?:internship|selection)|"
+    r"onboarding (?:details|documents|letter)|welcome (?:aboard|to the team))\b",
+    re.I,
+)
+# Hiring progress is escalated only when it is not bulk mail.
+_CAREER_PROGRESS = re.compile(
+    r"\b(interview (?:invitation|invite|call|schedule[ds]?|confirmation)|invit\w+ (?:you )?(?:to|for) (?:an? )?"
+    r"(?:\w+ ){0,2}interview|schedule (?:your|an|the) (?:\w+ )?interview|you(?:'ve| have) been shortlisted|shortlisted for|"
+    r"(?:next|final|technical|hr) round|moved? (?:you )?forward|assessment (?:invitation|link)|online assessment|"
+    r"coding (?:test|assessment|challenge) (?:invitation|link))\b",
+    re.I,
+)
+_CAREER_NOISE = re.compile(
+    r"\b(job alerts?|jobs? (?:for you|you may like|matching)|recommended (?:jobs|internships)|new jobs|"
+    r"apply now|unsubscribe from (?:job|these))\b",
+    re.I,
+)
+_CAREER_CONTEXT = re.compile(r"\b(intern(?:ship)?|job|position|role|candidate|candidature|hiring|recruit\w*|placement|"
+                             r"offer|interview|selection|ctc|stipend|joining)\b", re.I)
 _NOREPLY = re.compile(r"^(no-?reply|do-?not-?reply|notifications?|alerts?|mailer-daemon|bounce)", re.I)
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
 
@@ -54,6 +78,7 @@ class RuleFeatures:
     is_notification: bool
     is_security_alert: bool
     is_incident: bool
+    is_career_opportunity: bool
     reply_needed: bool
     action_required: bool
     deadline: DeadlineCandidate | None
@@ -73,6 +98,13 @@ def _sender_importance(from_address: str | None, contact_importance: int | None,
     if has_outbound_history:
         return 65
     return contact_importance if contact_importance is not None else 35
+
+
+def detect_career_opportunity(subject: str, body: str, *, is_newsletter: bool) -> bool:
+    text = f"{subject}\n{body[:8000]}"
+    if _CAREER_OFFER.search(text) and _CAREER_CONTEXT.search(text):
+        return not (is_newsletter and _CAREER_NOISE.search(text))
+    return bool(_CAREER_PROGRESS.search(text)) and not is_newsletter and not _CAREER_NOISE.search(text)
 
 
 def deadline_urgency(due: datetime | None, now: datetime) -> int:
@@ -149,12 +181,13 @@ def compute_rule_features(
     )
     is_security_alert = bool(_SECURITY_ALERT.search(text))
     is_incident = bool(_INCIDENT.search(text))
+    is_career = detect_career_opportunity(subject, body, is_newsletter=is_newsletter)
 
     candidates = extract_deadlines(body, now, user_timezone) + extract_deadlines(subject, now, user_timezone)
     deadline = primary_deadline(candidates, now)
     request = bool(_REQUEST.search(body)) and bool(_ACTION_VERBS.search(body))
     reply_needed = not (is_newsletter or is_notification) and bool(_REPLY_CUE.search(body[:6000]))
-    action_required = request or reply_needed or is_security_alert or is_incident
+    action_required = request or reply_needed or is_security_alert or is_incident or is_career
 
     components = {
         "deadline": deadline_urgency(deadline.due_at if deadline else None, now),
@@ -163,19 +196,24 @@ def compute_rule_features(
         "sender": _sender_importance(from_address, contact_importance, is_vip, has_outbound_history),
         "context": 70 if user_participated_in_thread else 45 if thread_message_count > 1 else 25,
     }
-    if is_newsletter:
+    if is_career:
+        components |= {"action": max(components["action"], 85), "impact": 95,
+                       "sender": max(components["sender"], 70)}
+    elif is_newsletter:
         components = {k: min(v, 20) for k, v in components.items()}
 
     category = (
         "security" if is_security_alert
+        else "career" if is_career
         else "newsletter" if is_newsletter
         else "notification" if is_notification
         else "work" if _IMPACT.search(text) or request
         else "other"
     )
-    tasks = [] if (is_newsletter or is_notification) else extract_rule_tasks(body, candidates)
+    tasks = [] if (is_newsletter or is_notification) and not is_career else extract_rule_tasks(body, candidates)
     return RuleFeatures(
         components=components, category=category, is_newsletter=is_newsletter, is_notification=is_notification,
-        is_security_alert=is_security_alert, is_incident=is_incident, reply_needed=reply_needed,
+        is_security_alert=is_security_alert, is_incident=is_incident, is_career_opportunity=is_career,
+        reply_needed=reply_needed,
         action_required=action_required, deadline=deadline, deadline_candidates=candidates, tasks=tasks,
     )

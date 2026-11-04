@@ -19,7 +19,7 @@ RiskCode = Literal[
     "other",
 ]
 Category = Literal[
-    "work", "personal", "finance", "security", "meeting", "newsletter", "notification", "marketing", "other"
+    "work", "career", "personal", "finance", "security", "meeting", "newsletter", "notification", "marketing", "other"
 ]
 
 

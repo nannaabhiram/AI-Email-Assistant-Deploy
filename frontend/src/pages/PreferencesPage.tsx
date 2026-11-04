@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { PhoneAlertsCard } from '@/components/settings/PhoneAlertsCard'
 import { Button } from '@/components/ui/Button'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog'
@@ -48,7 +49,7 @@ type FormInput = z.input<typeof preferencesSchema>
 function toForm(s: Settings): FormValues {
   return {
     timezone: canonicalTimezone(s.timezone), briefing_enabled: s.briefing_enabled, briefing_time: s.briefing_time.slice(0, 5),
-    notify_in_app: s.notification_prefs.in_app ?? true, notify_reminders: s.notification_prefs.reminders ?? true, notify_briefing: s.notification_prefs.briefing ?? true,
+    notify_in_app: s.notification_prefs.in_app !== false, notify_reminders: s.notification_prefs.reminders !== false, notify_briefing: s.notification_prefs.briefing !== false,
     threshold_high: s.priority_thresholds.high, threshold_medium: s.priority_thresholds.medium,
     w_deadline: s.scoring_weights.deadline, w_action: s.scoring_weights.action, w_impact: s.scoring_weights.impact, w_sender: s.scoring_weights.sender, w_context: s.scoring_weights.context,
     review_confidence_threshold: Number(s.review_confidence_threshold), auto_analyze: s.auto_analyze, attachment_auto_extract: s.attachment_auto_extract,
@@ -96,7 +97,8 @@ export default function PreferencesPage() {
           <Checkbox label="Briefing notifications" {...register('notify_briefing')} />
         </div>
       </Card>
-      <Card title="Priority scoring" description="Score = weighted sum of components (0–100). Security alerts, critical incidents, high phishing risk and imminent deadlines are always HIGH.">
+      <PhoneAlertsCard />
+      <Card title="Priority scoring" description="Score = weighted sum of components (0–100). Internship/job offers and interview calls, security alerts, critical incidents, high phishing risk and imminent deadlines are always HIGH.">
         <div className="grid gap-4 sm:grid-cols-3">
           <Input label="HIGH threshold" type="number" error={errors.threshold_high?.message} {...register('threshold_high')} />
           <Input label="MEDIUM threshold" type="number" error={errors.threshold_medium?.message} {...register('threshold_medium')} />

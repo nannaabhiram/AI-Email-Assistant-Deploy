@@ -560,6 +560,12 @@ class SettingsUpdateIn(BaseModel):
     newsletter_digest: bool | None = None
 
 
+class PhoneAlertsOut(BaseModel):
+    enabled: bool
+    topic: str | None = None
+    subscribe_url: str | None = None
+
+
 class NotificationOut(ORM):
     id: UUID
     kind: str

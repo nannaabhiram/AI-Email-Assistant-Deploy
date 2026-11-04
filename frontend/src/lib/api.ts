@@ -3,6 +3,7 @@
  * every request is authorised server-side from that verified token.
  */
 import type {
+  PhoneAlerts,
   Analysis,
   Analytics,
   Approval,
@@ -216,6 +217,10 @@ export const api = {
   analytics: (days = 30) => request<Analytics>('GET', '/api/v1/analytics', undefined, { days }),
   settings: () => request<Settings>('GET', '/api/v1/settings'),
   updateSettings: (body: Partial<Omit<Settings, 'version'>> & { version: number }) => request<Settings>('PATCH', '/api/v1/settings', body),
+  phoneAlerts: () => request<PhoneAlerts>('GET', '/api/v1/settings/phone-alerts'),
+  enablePhoneAlerts: () => request<PhoneAlerts>('POST', '/api/v1/settings/phone-alerts'),
+  disablePhoneAlerts: () => request<PhoneAlerts>('DELETE', '/api/v1/settings/phone-alerts'),
+  testPhoneAlert: () => request<void>('POST', '/api/v1/settings/phone-alerts/test'),
   deleteEmailData: () => request<void>('DELETE', '/api/v1/data/emails'),
   notifications: (unread_only = false) => request<Page<NotificationItem>>('GET', '/api/v1/notifications', undefined, { unread_only }),
   readNotification: (id: string) => request<void>('POST', `/api/v1/notifications/${id}/read`),

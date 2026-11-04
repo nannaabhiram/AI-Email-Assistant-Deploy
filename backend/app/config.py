@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     sensitive_rate_limit_per_minute: int = 20
     rate_limit_redis_url: str = ""  # e.g. redis://localhost:6379/0; shares limits across API instances
 
+    # --- Phone alerts (ntfy) ---------------------------------------------------
+    ntfy_server_url: str = "https://ntfy.sh"
+    ntfy_access_token: SecretStr = SecretStr("")  # only for self-hosted/reserved topics
+
     # --- Google / Gmail ----------------------------------------------------
     google_client_id: str = ""
     google_client_secret: SecretStr = SecretStr("")

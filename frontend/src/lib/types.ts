@@ -428,11 +428,17 @@ export interface ContactDetail extends Contact {
   open_commitments: Commitment[]
 }
 
+export interface PhoneAlerts {
+  enabled: boolean
+  topic: string | null
+  subscribe_url: string | null
+}
+
 export interface Settings {
   timezone: string
   briefing_enabled: boolean
   briefing_time: string
-  notification_prefs: Record<string, boolean>
+  notification_prefs: Record<string, boolean | string>
   priority_thresholds: { high: number; medium: number }
   scoring_weights: { deadline: number; action: number; impact: number; sender: number; context: number }
   review_confidence_threshold: string | number
