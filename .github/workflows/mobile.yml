@@ -1,0 +1,60 @@
+name: Mobile
+
+on:
+  push:
+    branches: [main]
+    paths: ["mobile/**", ".github/workflows/mobile.yml"]
+  pull_request:
+    paths: ["mobile/**", ".github/workflows/mobile.yml"]
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.9
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  android-apk:
+    needs: check
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.9
+          channel: stable
+          cache: true
+      - name: Write build config
+        env:
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.MOBILE_SUPABASE_PUBLISHABLE_KEY }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.MOBILE_GOOGLE_SERVICES_JSON }}
+        run: |
+          mkdir -p env
+          jq -n --arg key "$SUPABASE_PUBLISHABLE_KEY" \
+            '{API_BASE_URL:"https://mailpilot-api-cpi3.onrender.com",SUPABASE_URL:"https://hrejavjzfezqydneeatp.supabase.co",SUPABASE_PUBLISHABLE_KEY:$key,WEB_APP_URL:"https://mailpilot-web-n41v.onrender.com"}' > env/prod.json
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json; fi
+      - run: flutter build apk --release --dart-define-from-file=env/prod.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mailpilot-android
+          path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30

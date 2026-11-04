@@ -1,0 +1,27 @@
+name: mailpilot
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.7
+
+dependencies:
+  firebase_core: ^5.1.0
+  firebase_messaging: ^17.0.1
+  flutter:
+    sdk: flutter
+  flutter_local_notifications: ^22.3.3
+  flutter_riverpod: ^3.4.3
+  go_router: ^18.1.2
+  http: ^1.6.0
+  intl: ^0.20.3
+  supabase_flutter: ^2.18.3
+  url_launcher: ^6.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+flutter:
+  uses-material-design: true

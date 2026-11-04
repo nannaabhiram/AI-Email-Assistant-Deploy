@@ -1,0 +1,6 @@
+{
+  "API_BASE_URL": "https://mailpilot-api-cpi3.onrender.com",
+  "SUPABASE_URL": "https://hrejavjzfezqydneeatp.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_xxx (same value as VITE_SUPABASE_PUBLISHABLE_KEY)",
+  "WEB_APP_URL": "https://mailpilot-web-n41v.onrender.com"
+}
