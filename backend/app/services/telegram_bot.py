@@ -13,7 +13,7 @@ import json
 import re
 import secrets
 import time
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -24,9 +24,10 @@ from app.actions import compose
 from app.actions.engine import PermissionUpgradeRequired
 from app.analysis.search import natural_language_search
 from app.config import get_settings
-from app.db.models import EmailAnalysis, EmailMessage, UserSettings
+from app.db.models import ActionApproval, ApprovalState, EmailAnalysis, EmailMessage, UserSettings
 from app.db.session import system_session, user_session
 from app.errors import AppError, NotConfiguredError
+from app.jobs.queue import enqueue
 from app.llm.base import LLMError
 from app.llm.prompts import ASSISTANT_SYSTEM
 from app.llm.schemas import AssistantIntentOutput
@@ -155,6 +156,13 @@ def _preview(d: dict[str, Any]) -> str:
     note = f"\n\n<i>⚠️ {esc(d['notice'])}</i>" if d.get("notice") else ""
     return (f"{head}\n<b>To:</b> {to}\n<b>Subject:</b> {esc(d['subject'] or '(no subject)')}\n"
             f"──────────\n{esc(body)}{note}\n──────────\nApprove to send, or Rewrite for a new version.")
+
+
+def _mail_card(d: dict[str, Any], status: str) -> str:
+    """The approved mail as it was sent, with a status line underneath (keeps the chat history readable)."""
+    body = d["body"] if len(d["body"]) < 3300 else d["body"][:3300] + "…"
+    return (f"<b>To:</b> {esc(d['to'])}\n<b>Subject:</b> {esc(d.get('subject') or '(no subject)')}\n"
+            f"──────────\n{esc(body)}\n──────────\n{status}")
 
 
 def _draft_buttons(did: str) -> tg.Buttons:
@@ -396,12 +404,19 @@ class Bot:
             return
         self.st["drafts"].pop(did, None)
         await self.save()
-        text_done = f"✅ <b>Sending to {esc(d['to'])}</b> in {UNDO_SECONDS} seconds.\n<b>Subject:</b> {esc(d['subject'])}"
-        undo = [[{"text": "↩️ Undo", "callback_data": f"u:{r.approval.id}"}]]
+        text_wait = _mail_card(d, f"⏳ <b>Sending in {UNDO_SECONDS} seconds…</b> Tap Undo to stop it.")
+        undo = [[{"text": f"↩️ Undo ({UNDO_SECONDS} s)", "callback_data": f"u:{r.approval.id}"}]]
         if message_id:
-            await tg.edit_html(self.token, self.chat_id, message_id, text_done, undo)
+            await tg.edit_html(self.token, self.chat_id, message_id, text_wait, undo)
         else:
-            await self.say(text_done, undo)
+            message_id = await self.say(text_wait, undo)
+        async with system_session() as s:
+            await enqueue(s, "telegram_send_status", {
+                "user_id": str(self.user_id), "approval_id": str(r.approval.id), "message_id": message_id,
+                "to": d["to"], "subject": d["subject"], "body": d["body"][:3400],
+                "give_up_at": (r.send_at + timedelta(minutes=10)).isoformat(),
+            }, user_id=self.user_id, dedupe_key=f"tg-status:{r.approval.id}", priority=3, max_attempts=3,
+                run_at=r.send_at + timedelta(seconds=4))
 
     async def undo(self, approval_id: str, message_id: int | None) -> None:
         try:
@@ -541,3 +556,37 @@ async def users_needing_webhook() -> list[UUID]:
             {"base": get_settings().api_base_url.rstrip("/")})).scalars().all()
     return list(rows)
 
+
+
+class StillSending(Exception):
+    """The send job has not finished yet; check again shortly."""
+
+
+async def report_send_status(payload: dict[str, Any]) -> dict[str, Any]:
+    """After the undo window: replace the Undo button with "Mail sent" (or the failure) on the approved mail."""
+    user_id = UUID(payload["user_id"])
+    async with system_session() as s:
+        approval = await s.get(ActionApproval, UUID(payload["approval_id"]))
+    if approval is None or approval.user_id != user_id or approval.state == ApprovalState.CANCELLED:
+        return {"status": "cancelled"}
+    prefs, token = await _load(user_id)
+    chat_id = prefs.get(tg.CHAT_KEY)
+    if not token or not chat_id:
+        return {"status": "not_linked"}
+    state = approval.state
+    if state in (ApprovalState.APPROVED, ApprovalState.EXECUTING):
+        if datetime.now(UTC) < datetime.fromisoformat(payload["give_up_at"]):
+            raise StillSending(str(state))
+        status = "⌛ Still sending. Check Approvals in MailPilot if it doesn't arrive."
+    elif state == ApprovalState.SUCCEEDED:
+        status = f"✅ <b>Mail sent to {esc(payload['to'])}</b>"
+    else:
+        status = f"❌ <b>Couldn't send to {esc(payload['to'])}.</b> Open Approvals in MailPilot to see why and retry."
+    textv = _mail_card(payload, status)
+    url = f"{get_settings().frontend_url.rstrip('/')}/approvals"
+    buttons = [[{"text": "Open Approvals", "url": url}]] if state not in (ApprovalState.SUCCEEDED,) and url.startswith("https://") else None
+    if mid := payload.get("message_id"):
+        await tg.edit_html(token, chat_id, int(mid), textv, buttons)
+    else:
+        await tg.send_html(token, chat_id, textv, buttons)
+    return {"status": str(state)}
