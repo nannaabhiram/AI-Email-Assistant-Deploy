@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import accounts, compose, drafts, emails, health, intelligence, people, tasks
+from app.api.v1 import accounts, compose, devices, drafts, emails, health, intelligence, people, tasks
 from app.config import get_settings
 from app.db.session import dispose_engine
 from app.errors import install_error_handlers
@@ -83,7 +83,7 @@ def create_app() -> FastAPI:
         return response
 
     install_error_handlers(app)
-    for module in (health, accounts, emails, tasks, drafts, compose, intelligence, people):
+    for module in (health, accounts, emails, tasks, drafts, compose, intelligence, people, devices):
         app.include_router(module.router)
     return app
 

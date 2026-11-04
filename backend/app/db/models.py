@@ -586,6 +586,19 @@ class Notification(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+class PushDevice(Base):
+    __tablename__ = "push_devices"
+    id: Mapped[UUID] = uuid_pk()
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("profiles.id"))
+    token: Mapped[str]
+    platform: Mapped[str]
+    device_name: Mapped[str | None]
+    app_version: Mapped[str | None]
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    last_seen_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    disabled_at: Mapped[datetime | None]
+
+
 class Job(Base):
     __tablename__ = "jobs"
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)

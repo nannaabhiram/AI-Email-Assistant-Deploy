@@ -37,6 +37,7 @@ from app.gmail.sync import SyncSkipped, sync_account
 from app.jobs.queue import enqueue
 from app.llm.service import get_llm_service
 from app.logging import get_logger
+from app.services.push import PushTransientError, send_to_user
 from app.services.timezones import briefing_due_date
 
 log = get_logger(__name__)
@@ -189,6 +190,15 @@ async def handle_retention(_: dict[str, Any]) -> dict[str, Any]:
     return dict(result)
 
 
+async def handle_push_send(payload: dict[str, Any]) -> dict[str, Any]:
+    data = {"notification_id": payload.get("notification_id"), "link": payload.get("link"), "kind": payload.get("kind")}
+    try:
+        return await send_to_user(UUID(payload["user_id"]), title=payload["title"], body=payload.get("body"),
+                                  data=data, priority=payload.get("priority", "high"))
+    except PushTransientError as exc:
+        raise RetryAfter(30, str(exc)) from exc
+
+
 HANDLERS: dict[str, Handler] = {
     "gmail_sync": handle_gmail_sync,
     "analyze_message": handle_analyze,
@@ -199,6 +209,7 @@ HANDLERS: dict[str, Handler] = {
     "embed_documents": handle_embed,
     "send_reminders": handle_reminders,
     "retention_cleanup": handle_retention,
+    "push_send": handle_push_send,
 }
 
 

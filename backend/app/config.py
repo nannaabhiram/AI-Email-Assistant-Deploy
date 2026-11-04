@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     gmail_fetch_concurrency: int = 4
     sync_interval_minutes: int = 10
 
+    # --- Mobile push (Firebase Cloud Messaging HTTP v1, free) ---------------
+    push_enabled: bool = True
+    # Full service-account JSON (Firebase console > Project settings > Service accounts). Empty = push off.
+    fcm_service_account_json: SecretStr = SecretStr("")
+    fcm_api_base: str = "https://fcm.googleapis.com/v1"
+
     # --- DGX Spark remote inference ------------------------------------------
     dgx_ssh_host: str = ""
     dgx_ssh_user: str = ""
