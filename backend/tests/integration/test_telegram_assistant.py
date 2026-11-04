@@ -119,7 +119,7 @@ async def test_compose_preview_rewrite_approve_and_undo(user_a: uuid.UUID) -> No
 
         await telegram_bot.handle_update(user_a, _cb(f"a:{did}"))
         done = _sent(calls, "editMessageText")[-1]
-        assert "Sending to rahul@example.org" in done["text"]
+        assert "Sending in 10 seconds" in done["text"] and "rahul@example.org" in done["text"]
         approval_id = done["reply_markup"]["inline_keyboard"][0][0]["callback_data"].split(":")[1]
         async with system_session() as s:
             approval = await s.get(ActionApproval, uuid.UUID(approval_id))
@@ -180,3 +180,34 @@ async def test_scheduler_finds_linked_bots_without_webhook(user_a: uuid.UUID, mo
     await _link(user_a)
     monkeypatch.setattr(get_settings(), "api_base_url", "https://api.example")
     assert user_a in await telegram_bot.users_needing_webhook()
+
+
+async def test_after_the_undo_window_the_chat_shows_mail_sent(user_a: uuid.UUID) -> None:
+    from app.actions import engine
+    from app.jobs.handlers import handle_telegram_send_status
+
+    await _link(user_a)
+    await create_account(user_a, [SCOPE_READONLY, SCOPE_SEND])
+    router, calls = _mock()
+    with router:
+        await telegram_bot.handle_update(user_a, _msg("send mail to rahul@example.org saying i will come at 5"))
+        did = _sent(calls)[-1]["reply_markup"]["inline_keyboard"][0][0]["callback_data"].split(":")[1]
+        await telegram_bot.handle_update(user_a, _cb(f"a:{did}"))
+        async with system_session() as s:
+            job = (await s.execute(select(Job).where(Job.user_id == user_a, Job.job_type == "telegram_send_status"))).scalar_one()
+        assert job.payload["message_id"] == 99
+
+        from app.jobs.handlers import RetryLater
+        try:
+            await handle_telegram_send_status(job.payload)
+            raise AssertionError("should wait while the send is pending")
+        except RetryLater:
+            pass
+
+        gmail = FakeGmail([])
+        await engine.execute_approval(uuid.UUID(job.payload["approval_id"]), gmail=gmail)  # type: ignore[arg-type]
+        assert len(gmail.sent) == 1
+        await handle_telegram_send_status(job.payload)
+    final = _sent(calls, "editMessageText")[-1]
+    assert "Mail sent to rahul@example.org" in final["text"] and "come at 5" in final["text"].lower()
+    assert final["reply_markup"] == {"inline_keyboard": []}  # Undo button removed

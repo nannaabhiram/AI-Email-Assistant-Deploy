@@ -47,3 +47,6 @@ supabase/.branches/
 Thumbs.db
 .claude/settings.local.json
 .api-smoke.log
+
+*.bundle
+.api-smoke.log

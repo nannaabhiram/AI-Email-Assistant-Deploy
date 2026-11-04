@@ -241,6 +241,15 @@ async def handle_telegram_update(payload: dict[str, Any]) -> dict[str, Any]:
         raise RetryAfter(5, str(exc)) from exc
 
 
+async def handle_telegram_send_status(payload: dict[str, Any]) -> dict[str, Any]:
+    try:
+        return await telegram_bot.report_send_status(payload)
+    except telegram_bot.StillSending as exc:
+        raise RetryLater(5, f"send still {exc}") from exc
+    except telegram.TelegramError as exc:
+        raise RetryAfter(10, str(exc)) from exc
+
+
 async def handle_telegram_setup(payload: dict[str, Any]) -> dict[str, Any]:
     try:
         return {"webhook": await telegram_bot.ensure_webhook(UUID(payload["user_id"]))}
@@ -261,6 +270,7 @@ HANDLERS: dict[str, Handler] = {
     "push_send": handle_push_send,
     "telegram_update": handle_telegram_update,
     "telegram_setup": handle_telegram_setup,
+    "telegram_send_status": handle_telegram_send_status,
 }
 
 
