@@ -564,6 +564,12 @@ class PhoneAlertsOut(BaseModel):
     enabled: bool
     topic: str | None = None
     subscribe_url: str | None = None
+    telegram_available: bool = False
+    telegram_connected: bool = False
+
+
+class TelegramLinkOut(BaseModel):
+    link: str
 
 
 class NotificationOut(ORM):

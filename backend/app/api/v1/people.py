@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import hmac
+import secrets
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy import text as text_sql
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.actions.drafts import validate_addresses
@@ -33,6 +36,7 @@ from app.api.schemas import (
     ProfileUpdateIn,
     SettingsOut,
     SettingsUpdateIn,
+    TelegramLinkOut,
 )
 from app.api.v1.emails import list_item
 from app.config import get_settings
@@ -55,6 +59,7 @@ from app.db.models import (
 from app.db.session import system_session, user_session
 from app.errors import AppError, ConflictError, NotFoundError, ServiceUnavailableError
 from app.gmail.client import SCOPE_MODIFY, SCOPE_SEND
+from app.services import telegram
 from app.services.audit import record_audit
 from app.services.ntfy import NtfyError, new_topic, publish, subscribe_url
 from app.services.timezones import canonical_timezone
@@ -217,7 +222,9 @@ async def _set_phone_prefs(user_id: UUID, changes: dict[str, Any]) -> dict[str, 
 def _phone_out(prefs: dict[str, Any]) -> PhoneAlertsOut:
     topic = prefs.get("ntfy_topic")
     return PhoneAlertsOut(enabled=bool(topic) and prefs.get("phone_alerts", True) is not False, topic=topic,
-                          subscribe_url=subscribe_url(topic) if topic else None)
+                          subscribe_url=subscribe_url(topic) if topic else None,
+                          telegram_available=telegram.configured(),
+                          telegram_connected=bool(prefs.get("telegram_chat_id")))
 
 
 @router.get("/settings/phone-alerts", response_model=PhoneAlertsOut)
@@ -240,19 +247,77 @@ async def disable_phone_alerts(user: CurrentUserDep) -> PhoneAlertsOut:
     return _phone_out(await _set_phone_prefs(user.id, {"ntfy_topic": None, "phone_alerts": False}))
 
 
+@router.post("/settings/phone-alerts/telegram", response_model=TelegramLinkOut)
+async def link_telegram(user: CurrentUserDep) -> TelegramLinkOut:
+    if not telegram.configured():
+        raise ServiceUnavailableError("Telegram alerts are not set up on the server", code="telegram_not_configured")
+    code = secrets.token_urlsafe(16).replace("-", "").replace("_", "")[:20]
+    try:
+        await telegram.ensure_webhook()
+        username = await telegram.bot_username()
+    except telegram.TelegramError as exc:
+        raise ServiceUnavailableError(str(exc), code="telegram_unavailable") from exc
+    await _set_phone_prefs(user.id, {"telegram_link_code": code, "phone_alerts": True})
+    return TelegramLinkOut(link=f"https://t.me/{username}?start={code}")
+
+
+@router.delete("/settings/phone-alerts/telegram", response_model=PhoneAlertsOut)
+async def unlink_telegram(user: CurrentUserDep) -> PhoneAlertsOut:
+    return _phone_out(await _set_phone_prefs(user.id, {"telegram_chat_id": None, "telegram_link_code": None}))
+
+
+@router.post("/telegram/webhook", status_code=200, include_in_schema=False)
+async def telegram_webhook(request: Request) -> dict[str, bool]:
+    if not telegram.configured() or not hmac.compare_digest(
+            request.headers.get("x-telegram-bot-api-secret-token", ""), telegram.webhook_secret()):
+        raise NotFoundError("Not found")
+    update = await request.json()
+    message = update.get("message") or {}
+    chat_id = (message.get("chat") or {}).get("id")
+    text = str(message.get("text") or "")
+    if not chat_id or not text.startswith("/start"):
+        return {"ok": True}
+    code = text.split(maxsplit=1)[1].strip() if " " in text else ""
+    user_id = None
+    if code:
+        async with system_session() as s:
+            user_id = (await s.execute(
+                text_sql("select user_id from public.user_settings where notification_prefs->>'telegram_link_code' = :c"),
+                {"c": code})).scalar_one_or_none()
+    if user_id is None:
+        await telegram.send_alert(chat_id, title="Link not recognised",
+                                  body="Open MailPilot → Preferences → Phone alerts and tap Connect Telegram again.")
+        return {"ok": True}
+    await _set_phone_prefs(user_id, {"telegram_chat_id": chat_id, "telegram_link_code": None, "phone_alerts": True})
+    await telegram.send_alert(chat_id, title="MailPilot connected",
+                              body="Internship and job offers, selections and interview calls will alert you here.")
+    return {"ok": True}
+
+
 @router.post("/settings/phone-alerts/test", status_code=204)
 async def test_phone_alert(user: SensitiveUserDep) -> None:
     async with user_session(user.id) as s:
         settings = await s.get(UserSettings, user.id)
-    topic = ((settings.notification_prefs if settings else None) or {}).get("ntfy_topic")
-    if not topic:
-        raise AppError("Enable phone alerts first", code="phone_alerts_disabled")
-    try:
-        await publish(topic, title="MailPilot test alert",
-                      body="Phone alerts work. Offers and interview calls will arrive here.",
-                      click_url=get_settings().frontend_url, priority=4, tags="white_check_mark")
-    except NtfyError as exc:
-        raise ServiceUnavailableError(f"Could not reach the push service ({exc})", code="push_unavailable") from exc
+    prefs = (settings.notification_prefs if settings else None) or {}
+    chat_id, topic = prefs.get("telegram_chat_id"), prefs.get("ntfy_topic")
+    if not chat_id and not topic:
+        raise AppError("Connect Telegram or enable ntfy first", code="phone_alerts_disabled")
+    title, body = "MailPilot test alert", "Phone alerts work. Offers and interview calls will arrive here."
+    url = get_settings().frontend_url
+    errors: list[str] = []
+    if chat_id:
+        try:
+            await telegram.send_message(chat_id, title=title, body=body, url=url)
+            return
+        except telegram.TelegramError as exc:
+            errors.append(str(exc))
+    if topic:
+        try:
+            await publish(topic, title=title, body=body, click_url=url, priority=4, tags="white_check_mark")
+            return
+        except NtfyError as exc:
+            errors.append(str(exc))
+    raise ServiceUnavailableError(f"Could not reach the push service ({'; '.join(errors)})", code="push_unavailable")
 
 
 @router.get("/me", response_model=ProfileOut)

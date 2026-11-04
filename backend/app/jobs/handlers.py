@@ -37,6 +37,7 @@ from app.gmail.sync import SyncSkipped, sync_account
 from app.jobs.queue import enqueue
 from app.llm.service import get_llm_service
 from app.logging import get_logger
+from app.services import telegram
 from app.services.ntfy import send_ntfy
 from app.services.push import PushTransientError, send_to_user
 from app.services.timezones import briefing_due_date
@@ -196,15 +197,19 @@ async def _send_ntfy_alert(payload: dict[str, Any]) -> bool:
     async with system_session() as s:
         us = await s.get(UserSettings, UUID(payload["user_id"]))
     prefs = (us.notification_prefs if us else None) or {}
-    topic = prefs.get("ntfy_topic")
-    if not topic or prefs.get("phone_alerts") is False:
+    if prefs.get("phone_alerts") is False:
         return False
     link = payload.get("link")
     click = f"{get_settings().frontend_url.rstrip('/')}{link}" if link else get_settings().frontend_url
     important = payload.get("kind") == "important"
-    return await send_ntfy(topic, title=payload["title"], body=payload.get("body") or "", click_url=click,
-                           priority=5 if payload.get("priority", "high") == "high" else 3,
-                           tags="briefcase,tada" if important else "envelope")
+    sent = False
+    if chat_id := prefs.get("telegram_chat_id"):
+        sent = await telegram.send_alert(chat_id, title=payload["title"], body=payload.get("body") or "", url=click)
+    if not sent and (topic := prefs.get("ntfy_topic")):
+        sent = await send_ntfy(topic, title=payload["title"], body=payload.get("body") or "", click_url=click,
+                               priority=5 if payload.get("priority", "high") == "high" else 3,
+                               tags="briefcase,tada" if important else "envelope")
+    return sent
 
 
 async def handle_push_send(payload: dict[str, Any]) -> dict[str, Any]:

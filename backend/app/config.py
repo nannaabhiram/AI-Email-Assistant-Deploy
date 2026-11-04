@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     # --- Phone alerts (ntfy) ---------------------------------------------------
     ntfy_server_url: str = "https://ntfy.sh"
     ntfy_access_token: SecretStr = SecretStr("")  # only for self-hosted/reserved topics
+    telegram_bot_token: SecretStr = SecretStr("")  # from @BotFather; enables Telegram phone alerts
+    telegram_bot_username: str = ""  # optional; looked up via getMe when empty
 
     # --- Google / Gmail ----------------------------------------------------
     google_client_id: str = ""

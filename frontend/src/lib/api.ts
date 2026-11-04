@@ -220,6 +220,8 @@ export const api = {
   phoneAlerts: () => request<PhoneAlerts>('GET', '/api/v1/settings/phone-alerts'),
   enablePhoneAlerts: () => request<PhoneAlerts>('POST', '/api/v1/settings/phone-alerts'),
   disablePhoneAlerts: () => request<PhoneAlerts>('DELETE', '/api/v1/settings/phone-alerts'),
+  linkTelegram: () => request<{ link: string }>('POST', '/api/v1/settings/phone-alerts/telegram'),
+  unlinkTelegram: () => request<PhoneAlerts>('DELETE', '/api/v1/settings/phone-alerts/telegram'),
   testPhoneAlert: () => request<void>('POST', '/api/v1/settings/phone-alerts/test'),
   deleteEmailData: () => request<void>('DELETE', '/api/v1/data/emails'),
   notifications: (unread_only = false) => request<Page<NotificationItem>>('GET', '/api/v1/notifications', undefined, { unread_only }),
