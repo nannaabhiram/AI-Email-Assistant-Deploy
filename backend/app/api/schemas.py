@@ -505,6 +505,11 @@ class SettingsOut(ORM):
     briefing_enabled: bool
     briefing_time: time
     notification_prefs: dict[str, Any]
+
+    @field_validator("notification_prefs")
+    @classmethod
+    def _hide_secrets(cls, v: dict[str, Any]) -> dict[str, Any]:
+        return {k: val for k, val in (v or {}).items() if k not in {"telegram_bot_token_enc", "telegram_link_code"}}
     priority_thresholds: dict[str, Any]
     scoring_weights: dict[str, Any]
     review_confidence_threshold: Decimal
@@ -564,12 +569,13 @@ class PhoneAlertsOut(BaseModel):
     enabled: bool
     topic: str | None = None
     subscribe_url: str | None = None
-    telegram_available: bool = False
+    telegram_bot: str | None = None
     telegram_connected: bool = False
+    telegram_link: str | None = None
 
 
-class TelegramLinkOut(BaseModel):
-    link: str
+class TelegramBotIn(BaseModel):
+    bot_token: str = Field(min_length=20, max_length=100)
 
 
 class NotificationOut(ORM):

@@ -432,8 +432,9 @@ export interface PhoneAlerts {
   enabled: boolean
   topic: string | null
   subscribe_url: string | null
-  telegram_available: boolean
+  telegram_bot: string | null
   telegram_connected: boolean
+  telegram_link: string | null
 }
 
 export interface Settings {

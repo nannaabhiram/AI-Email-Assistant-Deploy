@@ -79,40 +79,44 @@ async def test_phone_alert_endpoints_and_ntfy_delivery(client, user_a: uuid.UUID
 
 
 @respx.mock
-async def test_telegram_link_webhook_and_alerts(client, user_a: uuid.UUID, monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    from pydantic import SecretStr
+async def test_per_user_telegram_bot(client, user_a: uuid.UUID, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    import json as _json
 
     from app.config import get_settings
-    from app.services import telegram
 
-    monkeypatch.setattr(get_settings(), "telegram_bot_token", SecretStr("123:abc"))
-    monkeypatch.setattr(get_settings(), "telegram_bot_username", "mailpilot_test_bot")
     monkeypatch.setattr(get_settings(), "frontend_url", "https://mailpilot.test")
-    api = "https://api.telegram.org/bot123:abc"
-    hook = respx.post(f"{api}/setWebhook").mock(return_value=httpx.Response(200, json={"ok": True, "result": True}))
+    token = "123456789:AAH" + "x" * 32
+    api = f"https://api.telegram.org/bot{token}"
+    respx.post(f"{api}/getMe").mock(return_value=httpx.Response(200, json={"ok": True, "result": {"username": "my_mp_bot"}}))
+    respx.post(f"{api}/deleteWebhook").mock(return_value=httpx.Response(200, json={"ok": True, "result": True}))
     sent = respx.post(f"{api}/sendMessage").mock(return_value=httpx.Response(200, json={"ok": True, "result": {}}))
+    updates = respx.post(f"{api}/getUpdates")
     h = {"Authorization": f"Bearer {make_token(user_a)}"}
 
-    assert (await client.get("/api/v1/settings/phone-alerts", headers=h)).json()["telegram_available"] is True
-    link = (await client.post("/api/v1/settings/phone-alerts/telegram", headers=h)).json()["link"]
-    assert link.startswith("https://t.me/mailpilot_test_bot?start=") and hook.called
-    assert hook.calls[0].request.content and b"/api/v1/telegram/webhook" in hook.calls[0].request.content
-    code = link.split("start=")[1]
+    bad = await client.post("/api/v1/settings/phone-alerts/telegram", headers=h, json={"bot_token": "not-a-token-at-all-123"})
+    assert bad.status_code == 400
+    out = (await client.post("/api/v1/settings/phone-alerts/telegram", headers=h, json={"bot_token": token})).json()
+    assert out["telegram_bot"] == "my_mp_bot" and not out["telegram_connected"]
+    code = out["telegram_link"].split("start=")[1]
+    assert out["telegram_link"] == f"https://t.me/my_mp_bot?start={code}"
 
-    update = {"message": {"chat": {"id": 4242}, "text": f"/start {code}"}}
-    assert (await client.post("/api/v1/telegram/webhook", json=update)).status_code == 404  # no secret
-    resp = await client.post("/api/v1/telegram/webhook", json=update,
-                             headers={"X-Telegram-Bot-Api-Secret-Token": telegram.webhook_secret()})
-    assert resp.status_code == 200
-    assert (await client.get("/api/v1/settings/phone-alerts", headers=h)).json()["telegram_connected"] is True
+    # Token and link code never leave the server.
+    prefs = (await client.get("/api/v1/settings", headers=h)).json()["notification_prefs"]
+    assert "telegram_bot_token_enc" not in prefs and "telegram_link_code" not in prefs and token not in str(prefs)
+
+    updates.mock(return_value=httpx.Response(200, json={"ok": True, "result": [
+        {"message": {"chat": {"id": 666, "type": "private"}, "text": "/start wrong"}}]}))
+    assert (await client.post("/api/v1/settings/phone-alerts/telegram/verify", headers=h)).json()["telegram_connected"] is False
+    updates.mock(return_value=httpx.Response(200, json={"ok": True, "result": [
+        {"message": {"chat": {"id": 4242, "type": "private"}, "text": f"/start {code}"}}]}))
+    assert (await client.post("/api/v1/settings/phone-alerts/telegram/verify", headers=h)).json()["telegram_connected"] is True
 
     assert (await client.post("/api/v1/settings/phone-alerts/test", headers=h)).status_code == 204
     await handle_push_send({"user_id": str(user_a), "notification_id": "n2", "title": "Career: Offer letter",
                             "body": "From Acme", "link": "/emails/9", "kind": "important", "priority": "high"})
-    import json as _json
     last = _json.loads(sent.calls[-1].request.content)
     assert last["chat_id"] == 4242 and "Career: Offer letter" in last["text"]
-    assert last["reply_markup"]["inline_keyboard"][0][0]["url"].endswith("/emails/9")
+    assert last["reply_markup"]["inline_keyboard"][0][0]["url"] == "https://mailpilot.test/emails/9"
 
     off = (await client.delete("/api/v1/settings/phone-alerts/telegram", headers=h)).json()
-    assert off["telegram_connected"] is False
+    assert off["telegram_connected"] is False and off["telegram_bot"] is None

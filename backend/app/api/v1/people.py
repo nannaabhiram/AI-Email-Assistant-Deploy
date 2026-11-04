@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-import hmac
 import secrets
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Query
 from sqlalchemy import delete, func, or_, select, update
-from sqlalchemy import text as text_sql
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.actions.drafts import validate_addresses
@@ -36,7 +34,7 @@ from app.api.schemas import (
     ProfileUpdateIn,
     SettingsOut,
     SettingsUpdateIn,
-    TelegramLinkOut,
+    TelegramBotIn,
 )
 from app.api.v1.emails import list_item
 from app.config import get_settings
@@ -59,6 +57,7 @@ from app.db.models import (
 from app.db.session import system_session, user_session
 from app.errors import AppError, ConflictError, NotFoundError, ServiceUnavailableError
 from app.gmail.client import SCOPE_MODIFY, SCOPE_SEND
+from app.security.crypto import encrypt
 from app.services import telegram
 from app.services.audit import record_audit
 from app.services.ntfy import NtfyError, new_topic, publish, subscribe_url
@@ -223,8 +222,10 @@ def _phone_out(prefs: dict[str, Any]) -> PhoneAlertsOut:
     topic = prefs.get("ntfy_topic")
     return PhoneAlertsOut(enabled=bool(topic) and prefs.get("phone_alerts", True) is not False, topic=topic,
                           subscribe_url=subscribe_url(topic) if topic else None,
-                          telegram_available=telegram.configured(),
-                          telegram_connected=bool(prefs.get("telegram_chat_id")))
+                          telegram_bot=prefs.get(telegram.BOT_KEY),
+                          telegram_connected=bool(prefs.get(telegram.CHAT_KEY) and prefs.get(telegram.TOKEN_KEY)),
+                          telegram_link=(f"https://t.me/{prefs[telegram.BOT_KEY]}?start={prefs[telegram.CODE_KEY]}"
+                                         if prefs.get(telegram.BOT_KEY) and prefs.get(telegram.CODE_KEY) else None))
 
 
 @router.get("/settings/phone-alerts", response_model=PhoneAlertsOut)
@@ -247,51 +248,45 @@ async def disable_phone_alerts(user: CurrentUserDep) -> PhoneAlertsOut:
     return _phone_out(await _set_phone_prefs(user.id, {"ntfy_topic": None, "phone_alerts": False}))
 
 
-@router.post("/settings/phone-alerts/telegram", response_model=TelegramLinkOut)
-async def link_telegram(user: CurrentUserDep) -> TelegramLinkOut:
-    if not telegram.configured():
-        raise ServiceUnavailableError("Telegram alerts are not set up on the server", code="telegram_not_configured")
-    code = secrets.token_urlsafe(16).replace("-", "").replace("_", "")[:20]
+@router.post("/settings/phone-alerts/telegram", response_model=PhoneAlertsOut)
+async def set_telegram_bot(body: TelegramBotIn, user: SensitiveUserDep) -> PhoneAlertsOut:
+    token = body.bot_token.strip()
+    if not telegram.TOKEN_RE.match(token):
+        raise AppError("That doesn't look like a bot token from @BotFather (123456:ABC...)", code="invalid_bot_token")
     try:
-        await telegram.ensure_webhook()
-        username = await telegram.bot_username()
+        me = await telegram.call(token, "getMe")
+        await telegram.call(token, "deleteWebhook", {"drop_pending_updates": True})
+    except telegram.TelegramError as exc:
+        raise AppError(str(exc), code="invalid_bot_token") from exc
+    code = secrets.token_hex(8)
+    return _phone_out(await _set_phone_prefs(user.id, {
+        telegram.TOKEN_KEY: encrypt(token), telegram.BOT_KEY: me["username"], telegram.CODE_KEY: code,
+        telegram.CHAT_KEY: None, "phone_alerts": True}))
+
+
+@router.post("/settings/phone-alerts/telegram/verify", response_model=PhoneAlertsOut)
+async def verify_telegram(user: CurrentUserDep) -> PhoneAlertsOut:
+    async with user_session(user.id) as s:
+        settings = await s.get(UserSettings, user.id)
+    prefs = (settings.notification_prefs if settings else None) or {}
+    token, code = telegram.token_from(prefs), prefs.get(telegram.CODE_KEY)
+    if prefs.get(telegram.CHAT_KEY) or not token or not code:
+        return _phone_out(prefs)
+    try:
+        chat_id = await telegram.find_start_chat(token, code)
+        if chat_id is None:
+            return _phone_out(prefs)
+        await telegram.send_message(token, chat_id, title="MailPilot connected",
+                                    body="Internship and job offers, selections and interview calls will alert you here.")
     except telegram.TelegramError as exc:
         raise ServiceUnavailableError(str(exc), code="telegram_unavailable") from exc
-    await _set_phone_prefs(user.id, {"telegram_link_code": code, "phone_alerts": True})
-    return TelegramLinkOut(link=f"https://t.me/{username}?start={code}")
+    return _phone_out(await _set_phone_prefs(user.id, {telegram.CHAT_KEY: chat_id, telegram.CODE_KEY: None}))
 
 
 @router.delete("/settings/phone-alerts/telegram", response_model=PhoneAlertsOut)
-async def unlink_telegram(user: CurrentUserDep) -> PhoneAlertsOut:
-    return _phone_out(await _set_phone_prefs(user.id, {"telegram_chat_id": None, "telegram_link_code": None}))
-
-
-@router.post("/telegram/webhook", status_code=200, include_in_schema=False)
-async def telegram_webhook(request: Request) -> dict[str, bool]:
-    if not telegram.configured() or not hmac.compare_digest(
-            request.headers.get("x-telegram-bot-api-secret-token", ""), telegram.webhook_secret()):
-        raise NotFoundError("Not found")
-    update = await request.json()
-    message = update.get("message") or {}
-    chat_id = (message.get("chat") or {}).get("id")
-    text = str(message.get("text") or "")
-    if not chat_id or not text.startswith("/start"):
-        return {"ok": True}
-    code = text.split(maxsplit=1)[1].strip() if " " in text else ""
-    user_id = None
-    if code:
-        async with system_session() as s:
-            user_id = (await s.execute(
-                text_sql("select user_id from public.user_settings where notification_prefs->>'telegram_link_code' = :c"),
-                {"c": code})).scalar_one_or_none()
-    if user_id is None:
-        await telegram.send_alert(chat_id, title="Link not recognised",
-                                  body="Open MailPilot → Preferences → Phone alerts and tap Connect Telegram again.")
-        return {"ok": True}
-    await _set_phone_prefs(user_id, {"telegram_chat_id": chat_id, "telegram_link_code": None, "phone_alerts": True})
-    await telegram.send_alert(chat_id, title="MailPilot connected",
-                              body="Internship and job offers, selections and interview calls will alert you here.")
-    return {"ok": True}
+async def remove_telegram_bot(user: CurrentUserDep) -> PhoneAlertsOut:
+    return _phone_out(await _set_phone_prefs(user.id, {
+        telegram.TOKEN_KEY: None, telegram.BOT_KEY: None, telegram.CHAT_KEY: None, telegram.CODE_KEY: None}))
 
 
 @router.post("/settings/phone-alerts/test", status_code=204)
@@ -299,15 +294,16 @@ async def test_phone_alert(user: SensitiveUserDep) -> None:
     async with user_session(user.id) as s:
         settings = await s.get(UserSettings, user.id)
     prefs = (settings.notification_prefs if settings else None) or {}
-    chat_id, topic = prefs.get("telegram_chat_id"), prefs.get("ntfy_topic")
-    if not chat_id and not topic:
+    chat_id, topic = prefs.get(telegram.CHAT_KEY), prefs.get("ntfy_topic")
+    token = telegram.token_from(prefs) if chat_id else None
+    if not token and not topic:
         raise AppError("Connect Telegram or enable ntfy first", code="phone_alerts_disabled")
     title, body = "MailPilot test alert", "Phone alerts work. Offers and interview calls will arrive here."
     url = get_settings().frontend_url
     errors: list[str] = []
-    if chat_id:
+    if token and chat_id:
         try:
-            await telegram.send_message(chat_id, title=title, body=body, url=url)
+            await telegram.send_message(token, chat_id, title=title, body=body, url=url)
             return
         except telegram.TelegramError as exc:
             errors.append(str(exc))

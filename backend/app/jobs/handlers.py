@@ -203,8 +203,8 @@ async def _send_ntfy_alert(payload: dict[str, Any]) -> bool:
     click = f"{get_settings().frontend_url.rstrip('/')}{link}" if link else get_settings().frontend_url
     important = payload.get("kind") == "important"
     sent = False
-    if chat_id := prefs.get("telegram_chat_id"):
-        sent = await telegram.send_alert(chat_id, title=payload["title"], body=payload.get("body") or "", url=click)
+    if prefs.get(telegram.CHAT_KEY):
+        sent = await telegram.send_alert(prefs, title=payload["title"], body=payload.get("body") or "", url=click)
     if not sent and (topic := prefs.get("ntfy_topic")):
         sent = await send_ntfy(topic, title=payload["title"], body=payload.get("body") or "", click_url=click,
                                priority=5 if payload.get("priority", "high") == "high" else 3,
